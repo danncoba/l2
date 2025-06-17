@@ -1,0 +1,152 @@
+import uuid
+from uuid import UUID as UUID4
+from datetime import datetime
+from typing import Optional, List
+
+from sqlalchemy import String, Boolean, BigInteger, Integer, Text, DateTime, UUID
+from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlmodel import SQLModel, Field, Column, Relationship, ForeignKey
+
+
+class User(SQLModel, table=True):
+    """
+    User table named users
+    """
+
+    __tablename__ = "users"
+
+    id: int = Field(
+        sa_column=Column(
+            BigInteger, primary_key=True, autoincrement=True, nullable=False
+        )
+    )
+    first_name: str = Field(sa_column=Column(String(100), nullable=False))
+    last_name: str = Field(sa_column=Column(String(100), nullable=False))
+    email: str = Field(sa_column=Column(String(100), nullable=False, unique=True))
+    password: str = Field(sa_column=Column(String(100), nullable=False))
+    is_admin: bool = Field(sa_column=Column(Boolean, default=False, nullable=False))
+
+    skills: List["UserSkills"] = Relationship(back_populates="user")
+    notifications: List["Notification"] = Relationship(back_populates="user")
+    matrix_chats: List["MatrixChat"] = Relationship(back_populates="user")
+
+
+class Grade(SQLModel, table=True):
+    __tablename__ = "grades"
+
+    id: int = Field(
+        sa_column=Column(
+            BigInteger, primary_key=True, autoincrement=True, nullable=False
+        )
+    )
+    label: str = Field(sa_column=Column(String(255), nullable=False))
+    value: int = Field(Integer(), nullable=False)
+    deleted: bool = Field(sa_column=Column(Boolean, nullable=False, default=False))
+    users_skills: List["UserSkills"] = Relationship(back_populates="grade")
+
+
+class Skill(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "skills"
+
+    id: int = Field(
+        sa_column=Column(
+            BigInteger, primary_key=True, autoincrement=True, nullable=False
+        )
+    )
+    name: str = Field(sa_column=Column(String(100), nullable=False))
+    description: str = Field(sa_column=Column(Text, nullable=True))
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    deleted: bool = Field(sa_column=Column(Boolean, nullable=False, default=False))
+    deleted_at: datetime = Field(sa_column=Column(DateTime(), nullable=False))
+    parent_id: Optional[int] = Field(
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("skills.id"),
+            nullable=True,
+            default=None,
+        )
+    )
+
+    parent: Optional["Skill"] = Relationship(
+        back_populates="children", sa_relationship_kwargs={"remote_side": "Skill.id"}
+    )
+    children: List["Skill"] = Relationship(back_populates="parent")
+    users: List["UserSkills"] = Relationship(back_populates="skill")
+    matrix_chats: List["MatrixChat"] = Relationship(back_populates="skill")
+
+
+class UserSkills(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "users_skills"
+    id: int = Field(
+        sa_column=Column(
+            BigInteger, primary_key=True, autoincrement=True, nullable=False
+        )
+    )
+    user_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    )
+    skill_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("skills.id"), nullable=False)
+    )
+    grade_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("grades.id"), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    note: str = Field(sa_column=Column(Text, nullable=True))
+    user: User = Relationship(back_populates="skills")
+    skill: Skill = Relationship(back_populates="users")
+    grade: Grade = Relationship(back_populates="users_skills")
+
+
+class Notification(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "notifications"
+    id: int = Field(
+        sa_column=Column(
+            BigInteger, primary_key=True, autoincrement=True, nullable=False
+        )
+    )
+    notification_type: str = Field(String, nullable=False, max_length=100, min_length=1)
+    message: str = Field(sa_column=Column(Text, nullable=False))
+    user_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    status: str = Field(sa_column=Column(String(20), nullable=False))
+    chat_uuid: UUID4 = Field(sa_column=Column(UUID, nullable=False))
+    user_group: str = Field(sa_column=Column(String(20), nullable=True))
+    user: User = Relationship(back_populates="notifications")
+
+
+class MatrixChat(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "matrix_chats"
+    id: uuid.UUID = Field(sa_column=Column(UUID, primary_key=True, autoincrement=False))
+    skill_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("skills.id"), nullable=False)
+    )
+    user_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    status: str = Field(sa_column=Column(String(20), nullable=False))
+    user: User = Relationship(back_populates="matrix_chats")
+    skill: Skill = Relationship(back_populates="matrix_chats")

@@ -1,0 +1,28 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+fastapi = {extras = ["standard"], version = "*"}
+langchain = "*"
+langchain-core = "*"
+langchain-openai = "*"
+black = "*"
+python-dotenv = "*"
+langgraph = "*"
+jupyterlab = "*"
+langgraph-checkpoint-postgres = "*"
+langchain-community = "*"
+duckduckgo-search = "*"
+alembic = "*"
+psycopg = "*"
+sqlmodel = "*"
+greenlet = "*"
+celery = {extras = ["redis"], version = "*"}
+
+[dev-packages]
+pip = "*"
+
+[requires]
+python_version = "3.13"
