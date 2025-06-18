@@ -9,3 +9,7 @@ class CreateMatrixChatBase(BaseModel):
     skill_id: int
     user_id: int
     status: Literal["IN_PROGRESS", "COMPLETED", "FAILED"]
+
+
+class UpdateMatrixChatStatusBase(BaseModel):
+    status: Literal["IN_PROGRESS", "COMPLETED", "FAILED"]

@@ -46,4 +46,10 @@ def admin_required(current_user: User = Depends(get_current_user)):
 
 
 def user_required(current_user: User = Depends(get_current_user)):
-    return True
+    if current_user is not None:
+        return True
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden",
+        headers={"WWW-Authenticate": "Basic"},
+    )

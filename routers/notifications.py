@@ -36,7 +36,11 @@ async def list_notifications(
     )
     group = "ADMIN" if current_user.is_admin else "USER"
     filters = {"or_": {"user_id": user_id, "user_group": group}}
-    notifications = await service.list_all_with_or(filters=filters)
+    notifications = await service.list_all_with_or(
+        filters=filters,
+        limit=common["limit"],
+        offset=common["offset"],
+    )
     print(f"Notifications -> {notifications}")
     all_notifications = []
     for notif in notifications:

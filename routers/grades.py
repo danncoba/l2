@@ -12,10 +12,10 @@ from routers.dto.request.grade import GradeRequestBase
 from routers.dto.response.grades import GradeResponseBase
 from routers.service.service import BaseService
 from routers.utils.common import common_parameters
-from security import security, admin_required
+from security import security, admin_required, user_required
 
 grades_router = APIRouter(
-    prefix="/api/v1/grades", tags=["Grades"], dependencies=[Depends(admin_required)]
+    prefix="/api/v1/grades", tags=["Grades"], dependencies=[Depends(user_required)]
 )
 
 

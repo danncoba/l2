@@ -56,6 +56,7 @@ class __AbstractService(ABC, Generic[T, I, CR, UR]):
         limit: Optional[int] = 20,
         offset: Optional[int] = 0,
         filters: dict = None,
+        order_by: Optional[list] = None,
     ) -> Sequence[Row[Any] | RowMapping | Any]:
         statement = select(self.model)
         if filters is not None and len(filters) > 0:
@@ -64,6 +65,8 @@ class __AbstractService(ABC, Generic[T, I, CR, UR]):
             ]
             statement = statement.where(*clauses)
         statement = statement.limit(limit).offset(offset)
+        if order_by is not None and len(order_by) > 0:
+            statement = statement.order_by(*order_by)
         result = await self.session.execute(statement)
         models = result.scalars().all()
         return models
@@ -86,6 +89,7 @@ class __AbstractService(ABC, Generic[T, I, CR, UR]):
         filters: dict = None,
         limit: Optional[int] = 20,
         offset: Optional[int] = 0,
+        order_by: Optional[list] = None,
     ) -> Sequence[Row[Any] | RowMapping | Any]:
         statement = select(self.model)
         if (
@@ -99,6 +103,8 @@ class __AbstractService(ABC, Generic[T, I, CR, UR]):
                 for key, value in filters["or_"].items()
             ]
             statement = statement.where(or_(*clauses))
+        if order_by is not None and len(order_by) > 0:
+            statement = statement.order_by(*order_by)
         statement = statement.limit(limit).offset(offset)
         result = await self.session.execute(statement)
         models = result.scalars().all()

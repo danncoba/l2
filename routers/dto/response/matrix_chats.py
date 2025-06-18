@@ -13,6 +13,7 @@ class MessageDict(BaseModel):
     message: str
     is_execution_blocked: bool = False
     are_separate_messages: bool = False
+    is_ambiguous: bool = False
 
 
 class MatrixChatResponseBase(BaseModel):
@@ -22,7 +23,6 @@ class MatrixChatResponseBase(BaseModel):
     created_at: datetime
     status: str
     updated_at: datetime
-    messages: List[MessageDict] = []
 
 
 class MatrixMessageChatResponse(BaseModel):
