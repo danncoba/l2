@@ -6,7 +6,7 @@ from IPython.display import display, Image
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph.state import CompiledStateGraph
 from psycopg_pool import AsyncConnectionPool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph import add_messages
@@ -36,6 +36,12 @@ class AmbiguousStdOutput(BaseModel):
     question: str
 
 
+class FinalClassificationStdOutput(BaseModel):
+    final_class: str = Field(description="Final classification label")
+    final_class_id: int = Field(description="Id of the final classification")
+    message_to_the_user: str = Field(description="Message to user")
+
+
 class SpellcheckBase(BaseModel):
     spelling: str
     corrected_spelling: str
@@ -55,6 +61,7 @@ class ReasonerState(TypedDict):
     reasoner_response: Optional[ReasonerOutputBase]
     interrupt_state: dict[str, str]
     is_ambiguous: bool
+    final_result: Optional[FinalClassificationStdOutput]
 
 
 class ClassifierState(TypedDict):
@@ -187,6 +194,7 @@ async def spellchecker(state: ReasonerState) -> ReasonerState:
         "reasoner_response": None,
         "interrupt_state": {},
         "is_ambiguous": False,
+        "final_result": None,
     }
 
 
@@ -219,6 +227,7 @@ async def ambiguity_resolver(state: ReasonerState) -> ReasonerState:
         "reasoner_response": None,
         "interrupt_state": {},
         "is_ambiguous": response.is_ambiguous,
+        "final_result": None,
     }
 
 
@@ -242,6 +251,7 @@ async def ask_clarification(state: ReasonerState) -> ReasonerState:
         "reasoner_response": None,
         "interrupt_state": interrupt_val,
         "is_ambiguous": state["is_ambiguous"],
+        "final_result": None,
     }
 
 
@@ -262,6 +272,7 @@ async def deeply_classify(state: ReasonerState) -> ReasonerState:
         "reasoner_response": state["reasoner_response"],
         "interrupt_state": {},
         "is_ambiguous": state["is_ambiguous"],
+        "final_result": None,
     }
 
 
@@ -275,14 +286,19 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
         """
     )
     prompt = prompt_template.invoke({"grades": state["grades"]})
-    response = model.invoke(state["messages"] + [HumanMessage(prompt.to_string())])
+    structured_output_model = model.with_structured_output(FinalClassificationStdOutput)
+    response = structured_output_model.invoke(
+        state["messages"] + [HumanMessage(prompt.to_string())]
+    )
+    print("REASONER RESPONSE-> ", response)
     return {
         "grades": state["grades"],
-        "messages": [AIMessage(response.content)],
+        "messages": [AIMessage(response.message_to_the_user)],
         "spellcheck_response": state["spellcheck_response"],
         "reasoner_response": state["reasoner_response"],
         "interrupt_state": {},
         "is_ambiguous": state["is_ambiguous"],
+        "final_result": response,
     }
 
 
@@ -294,6 +310,7 @@ async def human(state: ReasonerState) -> ReasonerState:
         "reasoner_response": state["reasoner_response"],
         "interrupt_state": {},
         "is_ambiguous": state["is_ambiguous"],
+        "final_result": state["final_result"],
     }
 
 
@@ -344,6 +361,7 @@ async def reasoner_run(
             "interrupt_happened": interrupt_happened,
             "interrupt_value": interrupt_value,
             "message": response["messages"][-1].content,
+            "final_result": response["final_result"],
         }
 
     return None

@@ -17,6 +17,7 @@ from routers.db.db import get_session
 from routers.db.models import Grade, MatrixChat, Notification, UserSkills
 from routers.dto.inner.matrix_chat import UpdateMatrixChatStatusBase
 from routers.dto.inner.notifications import CreateNotificationRequestBase
+from routers.dto.inner.user_skills import UpdateUserSkillsRequest
 from routers.dto.request.matrix_chat import (
     MatrixChatRequestBase,
     MatrixChatInterruptRequestBase,
@@ -127,15 +128,14 @@ async def post_matrix_message(
     notification_service: BaseService[
         Notification, int, CreateNotificationRequestBase, Any
     ] = BaseService(Notification, session)
-    user_skill_service: BaseService[UserSkills, int, Any, Any] = BaseService(
-        UserSkills, session
+    user_skill_service: BaseService[UserSkills, int, Any, UpdateUserSkillsRequest] = (
+        BaseService(UserSkills, session)
     )
     current_chat = await chat_service.get(chat_id)
     if current_chat.status == "COMPLETED":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden to modify completed discussion",
-            headers={"WWW-Authenticate": "Basic"},
         )
     grades = await service.list_all()
     all_grades = []
@@ -176,7 +176,22 @@ async def post_matrix_message(
         await chat_service.update(
             chat_id, UpdateMatrixChatStatusBase(status="COMPLETED")
         )
-        # await user_skill_service.update()
+        filters = {
+            "user_id": current_chat.user_id,
+            "skill_id": current_chat.skill_id,
+        }
+        user_skill = await user_skill_service.list_all(
+            filters=filters, limit=1, offset=0
+        )
+        if len(user_skill) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User Skill not found",
+            )
+        await user_skill_service.update(
+            user_skill[0].id,
+            UpdateUserSkillsRequest(grade_id=response["final_result"].final_class_id),
+        )
 
     return MessageDict(
         msg_type="ai",
