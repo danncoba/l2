@@ -1,26 +1,18 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import (
     Optional,
     TypeVar,
     Generic,
     List,
     Any,
-    Coroutine,
     Sequence,
     Type,
-    AsyncGenerator,
-    Iterable,
-    Literal,
 )
 
 from fastapi import HTTPException
 from sqlalchemy import Row, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
-from sqlalchemy.testing import in_
 from sqlmodel import select, or_
-
-from routers.db.models import UserSkills
 
 T = TypeVar("T")
 I = TypeVar("I")
