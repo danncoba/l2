@@ -1,9 +1,8 @@
 import uuid
-from typing import Annotated, Any, AsyncGenerator, Coroutine, List
+from typing import Annotated, Any, List
 
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
-from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBasicCredentials
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.types import StateSnapshot
@@ -13,25 +12,21 @@ from starlette.responses import StreamingResponse
 
 from agents.reasoner import reasoner_run, get_graph, run_interrupted
 from agents.welcome import welcome_agent
-from routers.db.db import get_session
-from routers.db.models import Grade, MatrixChat, Notification, UserSkills
-from routers.dto.inner.matrix_chat import UpdateMatrixChatStatusBase
-from routers.dto.inner.notifications import CreateNotificationRequestBase
-from routers.dto.inner.user_skills import UpdateUserSkillsRequest
-from routers.dto.request.matrix_chat import (
-    MatrixChatRequestBase,
-    MatrixChatInterruptRequestBase,
-)
-from routers.dto.response.common import ActionSuccessResponse
-from routers.dto.response.grades import GradeResponseBase
-from routers.dto.response.matrix_chats import (
+from db.db import get_session
+from db.models import Grade, MatrixChat, Notification, UserSkills
+from dto.inner.matrix_chat import UpdateMatrixChatStatusBase
+from dto.inner.notifications import CreateNotificationRequestBase
+from dto.inner.user_skills import UpdateUserSkillsRequest
+from dto.request.matrix_chat import MatrixChatRequestBase, MatrixChatInterruptRequestBase
+
+from dto.response.grades import GradeResponseBase
+from dto.response.matrix_chats import (
     MatrixChatResponseBase,
-    MatrixMessageChatResponse,
     MessageDict,
 )
-from routers.service.service import BaseService
-from routers.utils.common import convert_msg_dict_to_langgraph_format
+from service.service import BaseService
 from security import security
+from utils.common import convert_msg_dict_to_langgraph_format
 
 matrix_chats_router = APIRouter(
     prefix="/api/v1/matrix-chats", tags=["Matrix Validations Chat"]

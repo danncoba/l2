@@ -6,9 +6,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routers.db.models import User, Skill, Grade
-from routers.dto.response.matrix_chats import MessageDict
-from routers.service.service import BaseService
+from db.models import User, Skill, Grade
+from dto.response.matrix_chats import MessageDict
+from service.service import BaseService
 
 load_dotenv()
 

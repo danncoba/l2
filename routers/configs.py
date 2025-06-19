@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends
 from fastapi.security import HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routers.db.db import get_session
-from routers.dto.response.users import FullUserResponseBase
+from db.db import get_session
+from dto.response.users import FullUserResponseBase
 from security import security, admin_required
 
 config_router = APIRouter(

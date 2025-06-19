@@ -3,9 +3,9 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routers.db.db import get_session
-from routers.db.models import User
-from routers.dto.response.users import FullUserResponseBase, UserResponseBase
+from db.db import get_session
+from db.models import User
+from dto.response.users import UserResponseBase
 from security import get_current_user
 
 profile_router = APIRouter(prefix="/api/v1/profile", tags=["Profile"])

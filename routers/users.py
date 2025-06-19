@@ -1,17 +1,17 @@
-from typing import List, Any, Coroutine, Sequence, Annotated, Optional
+from typing import Sequence, Annotated, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 from fastapi.security import HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routers.db.db import get_session
-from routers.db.models import User
-from routers.dto.request.users import UserCreateRequest, UserRequestBase
-from routers.dto.response.users import UserResponseBase, FullUserResponseBase
-from routers.service.service import BaseService
-from routers.utils.common import common_parameters
+from db.db import get_session
+from db.models import User
+from dto.request.users import UserCreateRequest, UserRequestBase
+from dto.response.users import UserResponseBase, FullUserResponseBase
+from service.service import BaseService
 from security import security, get_current_user
+from utils.common import common_parameters
 
 users_router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 

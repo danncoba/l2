@@ -1,11 +1,9 @@
 from typing import List, Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from routers.db.db import get_session
-from routers.db.models import Grade
-from routers.dto.response.grades import GradeResponseBase
-from routers.service.service import BaseService
+from db.db import get_session
+from db.models import Grade
+from dto.response.grades import GradeResponseBase
+from service.service import BaseService
 
 
 async def get_expertise_level_or_grades(query: str) -> List[GradeResponseBase]:

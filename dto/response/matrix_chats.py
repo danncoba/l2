@@ -1,11 +1,10 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List, Dict
 
 from pydantic import BaseModel
 
-from routers.dto.response.skills import SkillResponseSmall
-from routers.dto.response.users import UserResponseSmall
+from dto.response.skills import SkillResponseSmall
+from dto.response.users import UserResponseSmall
 
 
 class MessageDict(BaseModel):

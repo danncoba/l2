@@ -2,16 +2,15 @@ from typing import Annotated, Any, List, Dict, Optional
 
 from fastapi import APIRouter
 from fastapi.params import Depends
-from fastapi.security import HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routers.db.db import get_session
-from routers.db.models import Skill, User
-from routers.dto.request.skills import SkillRequestBase
-from routers.dto.response.skills import SkillResponseBase, SkillResponseFull
-from routers.service.service import BaseService
-from routers.utils.common import common_parameters
-from security import security, get_current_user, admin_required
+from db.db import get_session
+from db.models import Skill, User
+from dto.request.skills import SkillRequestBase
+from dto.response.skills import SkillResponseFull
+from service.service import BaseService
+from security import get_current_user, admin_required
+from utils.common import common_parameters
 
 skills_router = APIRouter(
     prefix="/api/v1/skills", tags=["Skills"], dependencies=[Depends(admin_required)]

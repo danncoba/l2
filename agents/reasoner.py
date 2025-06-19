@@ -1,7 +1,6 @@
 import os
 import uuid
 from typing import TypedDict, Annotated, Optional, Literal, Any, List, AsyncGenerator
-from IPython.display import display, Image
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph.state import CompiledStateGraph
@@ -12,11 +11,11 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph import add_messages
 from langgraph.types import interrupt, Command
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 
-from routers.dto.response.grades import GradeResponseBase
-from routers.dto.response.matrix_chats import MessageDict
+from dto.response.grades import GradeResponseBase
+from dto.response.matrix_chats import MessageDict
 
 load_dotenv()
 db_url = os.getenv("PG_VECTOR_DATABASE_URL")

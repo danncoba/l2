@@ -1,10 +1,10 @@
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
-from routers.dto.response.grades import GradeResponseBase
-from routers.dto.response.skills import SkillResponseBase, SkillResponseSmall
-from routers.dto.response.users import UserResponseBase, UserResponseSmall
+from dto.response.grades import GradeResponseBase
+from dto.response.skills import SkillResponseSmall
+from dto.response.users import UserResponseSmall
 
 
 class UserMatrixResponseBase(BaseModel):

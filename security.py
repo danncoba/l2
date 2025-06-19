@@ -6,9 +6,9 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from routers.db.db import get_session
-from routers.db.models import User
-from routers.service.service import BaseService
+from db.db import get_session
+from db.models import User
+from service.service import BaseService
 
 security = HTTPBasic()
 

@@ -1,18 +1,17 @@
 from typing import Annotated, Sequence, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.params import Depends
 from fastapi.security import HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
 
-from routers.db.db import get_session
-from routers.db.models import Grade
-from routers.dto.request.grade import GradeRequestBase
-from routers.dto.response.grades import GradeResponseBase
-from routers.service.service import BaseService
-from routers.utils.common import common_parameters
-from security import security, admin_required, user_required
+from db.db import get_session
+from db.models import Grade
+from dto.request.grade import GradeRequestBase
+from dto.response.grades import GradeResponseBase
+from service.service import BaseService
+from security import security, user_required
+from utils.common import common_parameters
 
 grades_router = APIRouter(
     prefix="/api/v1/grades", tags=["Grades"], dependencies=[Depends(user_required)]

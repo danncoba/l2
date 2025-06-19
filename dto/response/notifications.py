@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from routers.dto.response.users import UserResponseSmall
+from dto.response.users import UserResponseSmall
 
 
 class NotificationSmallResponseBase(BaseModel):

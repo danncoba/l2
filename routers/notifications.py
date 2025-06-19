@@ -2,22 +2,21 @@ import uuid
 from typing import Annotated, Any, List, Optional, Dict
 
 from fastapi import APIRouter, Depends
-from fastapi.security import HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routers.db.db import get_session
-from routers.db.models import Notification, UserSkills, User, MatrixChat
-from routers.dto.inner.matrix_chat import CreateMatrixChatBase
-from routers.dto.inner.notifications import CreateNotificationRequestBase
-from routers.dto.request.notifications import UpdateNotificationRequestStatusBase
-from routers.dto.response.common import ActionSuccessResponse
-from routers.dto.response.notifications import (
+from db.db import get_session
+from db.models import Notification, UserSkills, User, MatrixChat
+from dto.inner.matrix_chat import CreateMatrixChatBase
+from dto.inner.notifications import CreateNotificationRequestBase
+from dto.request.notifications import UpdateNotificationRequestStatusBase
+from dto.response.common import ActionSuccessResponse
+from dto.response.notifications import (
     NotificationResponseBase,
     NotificationSmallResponseBase,
 )
-from routers.service.service import BaseService
-from routers.utils.common import common_parameters
-from security import security, get_current_user
+from service.service import BaseService
+from security import get_current_user
+from utils.common import common_parameters
 
 notifications_router = APIRouter(
     prefix="/api/v1/users/{user_id}/notifications", tags=["Notifications"]

@@ -2,7 +2,7 @@ from typing import List
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from routers.dto.response.matrix_chats import MessageDict
+from dto.response.matrix_chats import MessageDict
 
 
 async def common_parameters(offset: int = 0, limit: int = 20, order_by: List[str] = []):

@@ -6,16 +6,16 @@ from fastapi.security import HTTPBasicCredentials
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routers.db.db import get_session
-from routers.db.models import Skill, UserSkills, User, Grade
-from routers.dto.request.matrix import (
+from db.db import get_session
+from db.models import Skill, UserSkills, User, Grade
+from dto.request.matrix import (
     PopulateMatrixRequestBase,
     PopulateMatrixRequestAllBase,
 )
-from routers.dto.response.matrix import UserMatrixResponseBase
-from routers.service.service import BaseService
-from routers.utils.common import common_parameters
+from dto.response.matrix import UserMatrixResponseBase
+from service.service import BaseService
 from security import security
+from utils.common import common_parameters
 
 matrix_router = APIRouter(
     prefix="/api/v1/users/{user_id}/matrix", tags=["Users Knowledge Matrix"]
