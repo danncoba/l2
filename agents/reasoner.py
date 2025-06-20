@@ -1,9 +1,11 @@
 import os
+import json
 import uuid
 from typing import TypedDict, Annotated, Optional, Literal, Any, List, AsyncGenerator
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph.state import CompiledStateGraph
+from openai.resources.containers.files import content
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -14,6 +16,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 
+from agents.guidance import build_graph
 from dto.response.grades import GradeResponseBase
 from dto.response.matrix_chats import MessageDict
 
@@ -60,6 +63,8 @@ class ReasonerState(TypedDict):
     reasoner_response: Optional[ReasonerOutputBase]
     interrupt_state: dict[str, str]
     is_ambiguous: bool
+    ambiguous_output: Optional[str]
+    number_of_irregularities: Optional[int]
     final_result: Optional[FinalClassificationStdOutput]
 
 
@@ -115,6 +120,7 @@ async def reflect(state: ClassifierState) -> ClassifierState:
         {"state": predicted_state, "msg": input_val, "categories": state["grades"]}
     )
     response = model.invoke(prompt)
+    print("REFLECT RESPONSE", response)
     return {
         "msgs": [HumanMessage(response.content)],
         "finished_state": None,
@@ -127,9 +133,12 @@ async def correct_found(
     state: ClassifierState,
 ) -> Literal["reasoner", "human", "finish"]:
     if state["msgs"][-1].content == "finish":
+        print("CORRECT RESPONSE finish")
         return "finish"
     elif state["msgs"][-1].content == "human":
+        print("CORRECT RESPONSE human")
         return "human"
+    print("CORRECT RESPONSE reasoner")
     return "reasoner"
 
 
@@ -150,6 +159,7 @@ async def human(state: ClassifierState) -> ClassifierState:
     value = interrupt(
         interrupt_val,
     )
+    print("HUMAN IN THE LOOP RESPONSE")
     return {
         "msgs": [AIMessage(value)],
         "finished_state": state["finished_state"],
@@ -174,26 +184,27 @@ classify = classifier_builder.compile()
 builder = StateGraph(ReasonerState)
 
 
-async def spellchecker(state: ReasonerState) -> ReasonerState:
-    prompt_template = ChatPromptTemplate.from_template(
-        """
-        Spellcheck the users input. Do not explain yourself or add any other content!
-        Respond only with the corrected full version of text. If no corrections have happened pass original text!
-
-        Input: {input}
-        """
+async def answer_classifier(state: ReasonerState) -> ReasonerState:
+    guidance_graph = await build_graph()
+    irregularities_num = 0
+    if "number_of_irregularities" in state:
+        if state["number_of_irregularities"] is None:
+            irregularities_num = 0
+    response = await guidance_graph.ainvoke(
+        {
+            "question": state["messages"][-2].content,
+            "answer": state["messages"][-1].content,
+            "irregularity_amount": irregularities_num,
+        }
     )
-    model_structured = model.with_structured_output(SpellcheckBase)
-    prompt = await prompt_template.ainvoke({"input": state["messages"][0].content})
-    response = model_structured.invoke(prompt)
+    message_to_respond = []
+    if len(response["messages"]) > 0:
+        message_to_respond = [response["messages"][-1]]
     return {
         "grades": state["grades"],
-        "messages": state["messages"],
-        "spellcheck_response": response,
-        "reasoner_response": None,
+        "messages": message_to_respond,
         "interrupt_state": {},
-        "is_ambiguous": False,
-        "final_result": None,
+        "number_of_irregularities": irregularities_num,
     }
 
 
@@ -214,11 +225,14 @@ async def ambiguity_resolver(state: ReasonerState) -> ReasonerState:
             """,
         )
     )
+    print("AMBIGUOUS RESOLVER IN STATE", state)
     structured_output_model = model.with_structured_output(AmbiguousStdOutput)
     msg = message.format(
         categories=state["grades"], answer=state["messages"][-1].content
     )
-    response = await structured_output_model.ainvoke(state["messages"] + [msg])
+    response = await structured_output_model.ainvoke(
+        state["messages"] + [AIMessage(msg)]
+    )
     return {
         "grades": state["grades"],
         "messages": [AIMessage(response.question)],
@@ -226,6 +240,8 @@ async def ambiguity_resolver(state: ReasonerState) -> ReasonerState:
         "reasoner_response": None,
         "interrupt_state": {},
         "is_ambiguous": response.is_ambiguous,
+        "ambiguous_output": response.question,
+        "number_of_irregularities": state["number_of_irregularities"],
         "final_result": None,
     }
 
@@ -250,6 +266,8 @@ async def ask_clarification(state: ReasonerState) -> ReasonerState:
         "reasoner_response": None,
         "interrupt_state": interrupt_val,
         "is_ambiguous": state["is_ambiguous"],
+        "ambiguous_output": state["ambiguous_output"],
+        "number_of_irregularities": state["number_of_irregularities"],
         "final_result": None,
     }
 
@@ -263,7 +281,6 @@ async def deeply_classify(state: ReasonerState) -> ReasonerState:
             and class_chunk["finished_state"] is not None
         ):
             msg = class_chunk["finished_state"]
-
     return {
         "grades": state["grades"],
         "messages": [],
@@ -271,6 +288,8 @@ async def deeply_classify(state: ReasonerState) -> ReasonerState:
         "reasoner_response": state["reasoner_response"],
         "interrupt_state": {},
         "is_ambiguous": state["is_ambiguous"],
+        "ambiguous_output": state["ambiguous_output"],
+        "number_of_irregularities": state["number_of_irregularities"],
         "final_result": None,
     }
 
@@ -289,19 +308,7 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
     response = structured_output_model.invoke(
         state["messages"] + [HumanMessage(prompt.to_string())]
     )
-    print("REASONER RESPONSE-> ", response)
-    return {
-        "grades": state["grades"],
-        "messages": [AIMessage(response.message_to_the_user)],
-        "spellcheck_response": state["spellcheck_response"],
-        "reasoner_response": state["reasoner_response"],
-        "interrupt_state": {},
-        "is_ambiguous": state["is_ambiguous"],
-        "final_result": response,
-    }
-
-
-async def human(state: ReasonerState) -> ReasonerState:
+    print("REASONER RESPONSE -> ", response)
     return {
         "grades": state["grades"],
         "messages": [],
@@ -309,19 +316,36 @@ async def human(state: ReasonerState) -> ReasonerState:
         "reasoner_response": state["reasoner_response"],
         "interrupt_state": {},
         "is_ambiguous": state["is_ambiguous"],
+        "ambiguous_output": state["ambiguous_output"],
+        "number_of_irregularities": state["number_of_irregularities"],
+        "final_result": response,
+    }
+
+
+async def human(state: ReasonerState) -> ReasonerState:
+    print("HUMAN REASONER")
+    return {
+        "grades": state["grades"],
+        "messages": [],
+        "spellcheck_response": state["spellcheck_response"],
+        "reasoner_response": state["reasoner_response"],
+        "interrupt_state": {},
+        "is_ambiguous": state["is_ambiguous"],
+        "ambiguous_output": state["ambiguous_output"],
+        "number_of_irregularities": state["number_of_irregularities"],
         "final_result": state["final_result"],
     }
 
 
-builder.add_node("spellchecker", spellchecker)
+builder.add_node("answer_classifier", answer_classifier)
 builder.add_node("ambiguity", ambiguity_resolver)
 builder.add_node("ask_clarification", ask_clarification)
 builder.add_node("deeply_classify", deeply_classify)
 builder.add_node("reasoner", reasoner)
-builder.add_edge(START, "spellchecker")
-builder.add_edge("spellchecker", "ambiguity")
+builder.add_edge(START, "answer_classifier")
+builder.add_edge("answer_classifier", "ambiguity")
 builder.add_conditional_edges("ambiguity", next_step)
-builder.add_edge("ask_clarification", "spellchecker")
+builder.add_edge("ask_clarification", "ambiguity")
 builder.add_edge("deeply_classify", "reasoner")
 builder.add_edge("reasoner", END)
 
@@ -339,31 +363,64 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
 
 async def reasoner_run(
     thread_id: uuid.UUID, msgs: List[MessageDict], grades: List[GradeResponseBase]
-):
+) -> AsyncGenerator[str, Any]:
     async for graph in get_graph():
         config = {"configurable": {"thread_id": thread_id}}
 
-        response = await graph.ainvoke(
+        async for chunk in graph.astream(
             {
                 "messages": msgs,
                 "grades": grades,
             },
             config,
-        )
-        interrupt_happened = False
-        interrupt_value = ""
-        if "__interrupt__" in response:
-            interrupt_happened = True
-            interrupt_value = response["__interrupt__"][0].value
+        ):
+            print("async chunk", chunk)
+            interrupt_happened = False
+            interrupt_value = ""
+            processing_type = ""
+            actual_type = list(chunk.keys())[0]
+            message_val = ""
+            print("ACTUAL TYPE", actual_type)
+            if actual_type == "answer_classifier":
+                processing_type = "Classifying answer"
+            elif actual_type == "ambiguity":
+                processing_type = "Resolving ambiguity"
+            elif actual_type == "__interrupt__":
+                processing_type = "Interrupt"
+            elif actual_type == "deeply_classify":
+                processing_type = "Classifying"
+            elif actual_type == "reasoner":
+                processing_type = "Finalizing"
+            print("PROCESSING TYPE", processing_type)
+            if "__interrupt__" in chunk:
+                interrupt_happened = True
+                interrupt_value = chunk["__interrupt__"][0].value["answer_to_revisit"]
+                message_val = "Interrupt happened"
+            else:
+                if len(chunk[actual_type]["messages"]) > 0:
+                    message_val = chunk[actual_type]["messages"][-1].content
+                elif "final_result" in chunk[actual_type] is not None:
+                    if hasattr(chunk[actual_type]["final_result"], "message_to_the_user"):
+                        message_val = chunk[actual_type]["final_result"].message_to_the_user
 
-        return {
-            "interrupt_happened": interrupt_happened,
-            "interrupt_value": interrupt_value,
-            "message": response["messages"][-1].content,
-            "final_result": response["final_result"],
-        }
 
-    return None
+            yield json.dumps(
+                {
+                    "type": processing_type,
+                    "interrupt_happened": interrupt_happened,
+                    "interrupt_value": interrupt_value,
+                    "message": message_val,
+                    "final_result": (
+                        chunk[actual_type]["final_result"].final_class
+                        if "final_result" in chunk[actual_type]
+                        and isinstance(
+                            chunk[actual_type]["final_result"],
+                            FinalClassificationStdOutput,
+                        )
+                        else ""
+                    ),
+                }
+            )
 
 
 async def run_interrupted(thread_id: uuid.UUID, unblock_value: str):
