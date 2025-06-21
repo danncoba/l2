@@ -48,7 +48,9 @@ async def send_msg_by_msg(msgs: List[MessageDict]):
         yield msg.model_dump_json()
 
 
-@matrix_chats_router.get("/users/{user_id}", response_model=List[MatrixChatResponseBase])
+@matrix_chats_router.get(
+    "/users/{user_id}", response_model=List[MatrixChatResponseBase]
+)
 async def get_matrix_users_chats(
     user_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -60,17 +62,20 @@ async def get_matrix_users_chats(
     filters = {
         "user_id": user_id,
     }
-    all_user_validations = await service.list_all(filters=filters, order_by=[MatrixChat.created_at.desc()])
+    all_user_validations = await service.list_all(
+        filters=filters, order_by=[MatrixChat.created_at.desc()]
+    )
     all_matrices: List[MatrixChatResponseBase] = []
     for user_validation in all_user_validations:
         user = await user_validation.awaitable_attrs.user
         skill = await user_validation.awaitable_attrs.skill
         matrix = MatrixChatResponseBase(
-            **user_validation.model_dump(), user=user.model_dump(), skill=skill.model_dump()
+            **user_validation.model_dump(),
+            user=user.model_dump(),
+            skill=skill.model_dump(),
         )
         all_matrices.append(matrix)
     return all_matrices
-
 
 
 @matrix_chats_router.get("/{chat_id}/info", response_model=None)
@@ -233,15 +238,15 @@ async def save_after_processing(
         print("CHUNK RESPONSE REASONER -> ", response)
         if response["interrupt_happened"]:
             print("INTERRUPT HAPPENED RESPONSE {response}")
-            notification_request = CreateNotificationRequestBase(
-                notification_type="INTERRUPT",
-                user_id=None,
-                status="UNREAD",
-                chat_uuid=thread_id,
-                message=response["message"],
-                user_group="ADMIN",
-            )
-            await notification_service.create(notification_request)
+            # notification_request = CreateNotificationRequestBase(
+            #     notification_type="INTERRUPT",
+            #     user_id=None,
+            #     status="UNREAD",
+            #     chat_uuid=thread_id,
+            #     message=response["message"],
+            #     user_group="ADMIN",
+            # )
+            # await notification_service.create(notification_request)
             yield MessageDict(
                 msg_type="ai",
                 message=response["message"],
