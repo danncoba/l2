@@ -419,7 +419,7 @@ async def reasoner_run(
                     "interrupt_value": interrupt_value,
                     "message": message_val,
                     "final_result": (
-                        chunk[actual_type]["final_result"].final_class
+                        chunk[actual_type]["final_result"].model_dump_json()
                         if "final_result" in chunk[actual_type]
                         and isinstance(
                             chunk[actual_type]["final_result"],

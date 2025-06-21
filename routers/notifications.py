@@ -37,6 +37,7 @@ async def list_notifications(
     filters = {"or_": {"user_id": user_id, "user_group": group}}
     notifications = await service.list_all_with_or(
         filters=filters,
+        order_by=[Notification.created_at.desc()],
         limit=common["limit"],
         offset=common["offset"],
     )

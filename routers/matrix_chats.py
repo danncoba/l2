@@ -1,5 +1,6 @@
+import json
 import uuid
-from typing import Annotated, Any, List
+from typing import Annotated, Any, List, AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
@@ -11,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from agents.guidance import run_answer_classifier
-from agents.reasoner import reasoner_run, get_graph, run_interrupted
+from agents.reasoner import (
+    reasoner_run,
+    get_graph,
+    run_interrupted,
+    FinalClassificationStdOutput,
+)
 from agents.welcome import welcome_agent
 from db.db import get_session
 from db.models import Grade, MatrixChat, Notification, UserSkills
@@ -40,6 +46,31 @@ matrix_chats_router = APIRouter(
 async def send_msg_by_msg(msgs: List[MessageDict]):
     for msg in msgs:
         yield msg.model_dump_json()
+
+
+@matrix_chats_router.get("/users/{user_id}", response_model=List[MatrixChatResponseBase])
+async def get_matrix_users_chats(
+    user_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    credentials: Annotated[HTTPBasicCredentials, Depends(security)],
+) -> List[MatrixChatResponseBase]:
+    service: BaseService[MatrixChat, uuid.UUID, Any, Any] = BaseService(
+        MatrixChat, session
+    )
+    filters = {
+        "user_id": user_id,
+    }
+    all_user_validations = await service.list_all(filters=filters, order_by=[MatrixChat.created_at.desc()])
+    all_matrices: List[MatrixChatResponseBase] = []
+    for user_validation in all_user_validations:
+        user = await user_validation.awaitable_attrs.user
+        skill = await user_validation.awaitable_attrs.skill
+        matrix = MatrixChatResponseBase(
+            **user_validation.model_dump(), user=user.model_dump(), skill=skill.model_dump()
+        )
+        all_matrices.append(matrix)
+    return all_matrices
+
 
 
 @matrix_chats_router.get("/{chat_id}/info", response_model=None)
@@ -124,12 +155,6 @@ async def post_matrix_message(
         MatrixChat, uuid.UUID, Any, UpdateMatrixChatStatusBase
     ] = BaseService(MatrixChat, session)
     service: BaseService[Grade, int, Any, Any] = BaseService(Grade, session)
-    notification_service: BaseService[
-        Notification, int, CreateNotificationRequestBase, Any
-    ] = BaseService(Notification, session)
-    user_skill_service: BaseService[UserSkills, int, Any, UpdateUserSkillsRequest] = (
-        BaseService(UserSkills, session)
-    )
     current_chat = await chat_service.get(chat_id)
     if current_chat.status == "COMPLETED":
         raise HTTPException(
@@ -153,61 +178,11 @@ async def post_matrix_message(
         messages_to_send = convert_msg_dict_to_langgraph_format(create_dto.messages)
         grades_to_send = all_grades
     return StreamingResponse(
-        reasoner_run(chat_id, messages_to_send, grades_to_send),
+        save_after_processing(
+            chat_id, messages_to_send, grades_to_send, session, current_chat
+        ),
         media_type="application/json",
     )
-    # async for response in reasoner_run(chat_id, messages_to_send, grades_to_send):
-    #     print("CHUNK RESPONSE REASONER -> ", response)
-    #     if response["interrupt_happened"]:
-    #         print("INTERRUPT HAPPENED RESPONSE {response}")
-    #         notification_request = CreateNotificationRequestBase(
-    #             notification_type="INTERRUPT",
-    #             user_id=None,
-    #             status="UNREAD",
-    #             chat_uuid=chat_id,
-    #             message=response["message"],
-    #             user_group="ADMIN",
-    #         )
-    #         await notification_service.create(notification_request)
-    #         yield MessageDict(
-    #             msg_type="ai",
-    #             message=response["message"],
-    #             is_execution_blocked=True,
-    #             is_ambiguous=True,
-    #         )
-    #     else:
-    #         if (
-    #             "final_result" in response
-    #             and not isinstance(response["final_result"], str)
-    #             and getattr(response["final_result"], "final_class_id") is not None
-    #         ):
-    #             await chat_service.update(
-    #                 chat_id, UpdateMatrixChatStatusBase(status="COMPLETED")
-    #             )
-    #             print(f"CHUNK RESPONSE UPDATED {response}")
-    #             filters = {
-    #                 "user_id": current_chat.user_id,
-    #                 "skill_id": current_chat.skill_id,
-    #             }
-    #             user_skill = await user_skill_service.list_all(
-    #                 filters=filters, limit=1, offset=0
-    #             )
-    #             if len(user_skill) == 0:
-    #                 raise HTTPException(
-    #                     status_code=status.HTTP_404_NOT_FOUND,
-    #                     detail="User Skill not found",
-    #                 )
-    #             await user_skill_service.update(
-    #                 user_skill[0].id,
-    #                 UpdateUserSkillsRequest(
-    #                     grade_id=response["final_result"].final_class_id
-    #                 ),
-    #             )
-    #
-    #     yield MessageDict(
-    #         msg_type="ai",
-    #         message=response["message"],
-    #     )
 
 
 @matrix_chats_router.post("/{chat_id}/interrupt", response_model=MessageDict)
@@ -235,3 +210,77 @@ async def get_current_state(thread_id: uuid.UUID) -> StateSnapshot | None:
         config = {"configurable": {"thread_id": thread_id}}
         current_state = await graph.aget_state(config)
         return current_state
+
+
+async def save_after_processing(
+    thread_id: uuid.UUID,
+    msgs: List[MessageDict],
+    grades: List[GradeResponseBase],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_chat: MatrixChat,
+) -> AsyncGenerator[str, Any]:
+    notification_service: BaseService[
+        Notification, int, CreateNotificationRequestBase, Any
+    ] = BaseService(Notification, session)
+    user_skill_service: BaseService[UserSkills, int, Any, UpdateUserSkillsRequest] = (
+        BaseService(UserSkills, session)
+    )
+    chat_service: BaseService[
+        MatrixChat, uuid.UUID, Any, UpdateMatrixChatStatusBase
+    ] = BaseService(MatrixChat, session)
+    async for chunk in reasoner_run(thread_id, msgs, grades):
+        response = json.loads(chunk)
+        print("CHUNK RESPONSE REASONER -> ", response)
+        if response["interrupt_happened"]:
+            print("INTERRUPT HAPPENED RESPONSE {response}")
+            notification_request = CreateNotificationRequestBase(
+                notification_type="INTERRUPT",
+                user_id=None,
+                status="UNREAD",
+                chat_uuid=thread_id,
+                message=response["message"],
+                user_group="ADMIN",
+            )
+            await notification_service.create(notification_request)
+            yield MessageDict(
+                msg_type="ai",
+                message=response["message"],
+                is_execution_blocked=True,
+                is_ambiguous=True,
+            ).model_dump_json()
+        else:
+            if (
+                "final_result" in response
+                and isinstance(response["final_result"], str)
+                and response["final_result"] != ""
+            ):
+                final_classification = FinalClassificationStdOutput.model_validate_json(
+                    response["final_result"]
+                )
+                await chat_service.update(
+                    thread_id, UpdateMatrixChatStatusBase(status="COMPLETED")
+                )
+                print(f"CHUNK RESPONSE UPDATED {response}")
+                filters = {
+                    "user_id": current_chat.user_id,
+                    "skill_id": current_chat.skill_id,
+                }
+                user_skill = await user_skill_service.list_all(
+                    filters=filters, limit=1, offset=0
+                )
+                if len(user_skill) == 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="User Skill not found",
+                    )
+                await user_skill_service.update(
+                    user_skill[0].id,
+                    UpdateUserSkillsRequest(
+                        grade_id=final_classification.final_class_id
+                    ),
+                )
+
+        yield MessageDict(
+            msg_type="ai",
+            message=response["message"],
+        ).model_dump_json()

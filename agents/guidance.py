@@ -9,7 +9,7 @@ from langgraph.types import interrupt, Command
 from langgraph.graph import StateGraph, START, END, add_messages
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from utils.common import convert_msg_dict_to_langgraph_format
 
@@ -20,6 +20,11 @@ LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 model = ChatOpenAI(
     model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, verbose=True
 )
+
+
+class AnswerClassification(BaseModel):
+    categorization: str = Field(description="classification")
+    note: str = Field(description="short additional notes from your observation")
 
 
 class GuidanceState(TypedDict):
@@ -47,31 +52,38 @@ async def classify_answer(state: GuidanceState) -> GuidanceState:
         (
             "system",
             """
-        You are classifying discussion (question: noted with "Question/Statement:" and answer: noted with "Answer:" pairs) 
-        with user to a question to one of the following categories:
-        direct: answer makes sense and answers the question
-        need_help: When user needs additional help with the question
-        evasion: When user is evading to answer clearly stated question
-        confusion: When user seems to be confused on the question
+You are classifying discussion (question noted with "Question/Statement:" and answer noted with "Answer:" within pairs) with user to a question to one of the following categories:
+direct: answer makes sense and unquestionably answers the question that was asked, without any ambiguity, confusion, evasion, make belief or contradiction
+need_help: When user needs additional help with the question or is asking a question related to the question we asked
+evasion: When user is evading to answer clearly a question, or when intentionally creating confusion
+confusion: When user seems to be confused on the question
+unknown: When other categories do not apply
 
-        Answer with the categorization without additional explanation!
+Please prioritize the latest answers than the question and answers from beginning of the discussion!
+Answer with the categorization without additional explanation!
+Please answer directly to the user!
+Original question is the most important question explaining the purpose and intent of the conversation!
 
-        Discussion:
-        {discussion}
+Discussion:
+{discussion}
         """,
         )
     )
+    structured_model = model.with_structured_output(AnswerClassification)
     full_discussion = await prepare_discussion(state["messages"])
     prompt = prompt_template.format(discussion=full_discussion)
 
-    answer = await model.ainvoke(prompt)
-    print("CLASSIFY ANSWER ANSWER", answer.content)
+    answer = await structured_model.ainvoke(prompt)
+    print("CLASSIFY ANSWER ANSWER", answer.categorization)
+    msgs = [AIMessage(answer.categorization)]
+    if answer.categorization == "direct":
+        msgs = []
     return {
-        "messages": [AIMessage(answer.content)],
-        "classification": answer.content,
+        "messages": msgs,
+        "classification": answer.categorization,
         "question": None,
-        "answer": answer.content,
-        "irregularity_amount": 0,
+        "answer": answer.categorization,
+        "irregularity_amount": state["irregularity_amount"],
     }
 
 
@@ -81,14 +93,19 @@ async def need_help(state: GuidanceState) -> GuidanceState:
         (
             "system",
             """
-            Provide additional help and explanation to the user explaining the question based on the users answer.
+            Provide additional help and explanation to the user explaining the original intent based on the entire
+            Discussion.
+            Discussion contains Question Answer pairs noted with question "Question/Statement:" and "Answer:"
             Give the user options and possibilities to help him get to the final answer.
-            Question: {question}
-            Answer: {answer}
+            Original question is the most important question explaining the purpose and intent of the conversation!
+            Please answer directly to the user!
+            Here is the Discussion:
+            {discussion}
             """,
         )
     )
-    prompt = prompt_template.format(question=state["question"], answer=state["answer"])
+    full_discussion = await prepare_discussion(state["messages"])
+    prompt = prompt_template.format(discussion=full_discussion)
 
     answer = await model.ainvoke(prompt)
     print("NEED HELP ANSWER", answer.content)
@@ -107,14 +124,19 @@ async def evasion(state: GuidanceState) -> GuidanceState:
         (
             "system",
             """
-        The user is evading the question, providing irrelevant or unrelated answers to the questions.
-        Please provide a user with explanation that if continued this will be escalated to managers
-        Question: {question}
-        Answer: {answer}
+        The user is evading the question, providing irrelevant or unrelated answers to the questions based on the discussion.
+        Please provide a user with explanation that if continued this will be escalated to managers.
+        Original question is the most important question explaining the purpose and intent of the conversation!
+        Please answer directly to the user!
+
+        Here is the discussion:
+        {discussion}
         """,
         )
     )
-    prompt = prompt_template.format(question=state["question"], answer=state["answer"])
+    full_discussion = await prepare_discussion(state["messages"])
+
+    prompt = prompt_template.format(discussion=full_discussion)
     answer = await model.ainvoke(prompt)
     print("EVASION ANSWER", answer.content)
     return {
@@ -131,14 +153,17 @@ async def confusion(state: GuidanceState) -> GuidanceState:
         (
             "system",
             """
-        The user seems to be confused on the question based on users answer.
-        Reiterate the question with additional details explaining better
-        Question: {question}
-        Answer: {answer}
+        The user seems to be confused on the question based on the entire discussion.
+        Reiterate the question with additional details explaining better.
+        Original question is the most important question explaining the purpose and intent of the conversation!
+        Please answer directly to the user!
+        Here is the discussion:
+        {discussion}
         """,
         )
     )
-    prompt = prompt_template.format(question=state["question"], answer=state["answer"])
+    full_discussion = await prepare_discussion(state["messages"])
+    prompt = prompt_template.format(discussion=full_discussion)
     answer = await model.ainvoke(prompt)
     print("CONFUSION ANSWER", answer.content)
     return {
