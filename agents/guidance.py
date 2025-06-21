@@ -1,7 +1,9 @@
+from dto.response.matrix_chats import MessageDict
 import os
 from typing import TypedDict, Annotated, Literal
 
 from dotenv import load_dotenv
+from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langgraph.graph.graph import CompiledGraph
 from langgraph.types import interrupt, Command
 from langgraph.graph import StateGraph, START, END, add_messages
@@ -9,6 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
+from utils.common import convert_msg_dict_to_langgraph_format
 
 load_dotenv()
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -27,40 +30,53 @@ class GuidanceState(TypedDict):
     irregularity_amount: int
 
 
+async def prepare_discussion(messages: list[BaseMessage]) -> str:
+    discussion = ""
+    print(f"Preparing discussion for {messages}")
+    for msg in messages:
+        if isinstance(msg, AIMessage):
+            discussion += f"Question: {msg.content}\n"
+        elif isinstance(msg, HumanMessage):
+            discussion += f"Answer: {msg.content}\n"
+    print(f"Discussion:\n{discussion}")
+    return discussion
+
+
 async def classify_answer(state: GuidanceState) -> GuidanceState:
     prompt_template = ChatPromptTemplate.from_messages(
         (
             "system",
             """
-        You are classifying user answers to a question to one of the following categories:
+        You are classifying discussion (question: noted with "Question/Statement:" and answer: noted with "Answer:" pairs) 
+        with user to a question to one of the following categories:
         direct: answer makes sense and answers the question
         need_help: When user needs additional help with the question
         evasion: When user is evading to answer clearly stated question
         confusion: When user seems to be confused on the question
-        
-        If the answer 
-        
-        Answer with the categorization without additional explination!
-        
-        Question: {question}
-        Answer: {answer}
+
+        Answer with the categorization without additional explanation!
+
+        Discussion:
+        {discussion}
         """,
         )
     )
-    prompt = prompt_template.format(question=state["question"], answer=state["answer"])
+    full_discussion = await prepare_discussion(state["messages"])
+    prompt = prompt_template.format(discussion=full_discussion)
 
     answer = await model.ainvoke(prompt)
-
+    print("CLASSIFY ANSWER ANSWER", answer.content)
     return {
-        "messages": state["messages"],
+        "messages": [AIMessage(answer.content)],
         "classification": answer.content,
-        "question": state["question"],
-        "answer": state["answer"],
+        "question": None,
+        "answer": answer.content,
         "irregularity_amount": 0,
     }
 
 
 async def need_help(state: GuidanceState) -> GuidanceState:
+    print("NEED HELP")
     prompt_template = ChatPromptTemplate.from_messages(
         (
             "system",
@@ -75,8 +91,9 @@ async def need_help(state: GuidanceState) -> GuidanceState:
     prompt = prompt_template.format(question=state["question"], answer=state["answer"])
 
     answer = await model.ainvoke(prompt)
+    print("NEED HELP ANSWER", answer.content)
     return {
-        "messages": [answer.content],
+        "messages": [AIMessage(answer.content)],
         "classification": state["classification"],
         "question": state["question"],
         "answer": state["answer"],
@@ -85,6 +102,7 @@ async def need_help(state: GuidanceState) -> GuidanceState:
 
 
 async def evasion(state: GuidanceState) -> GuidanceState:
+    print("EVASION")
     prompt_template = ChatPromptTemplate.from_messages(
         (
             "system",
@@ -98,8 +116,9 @@ async def evasion(state: GuidanceState) -> GuidanceState:
     )
     prompt = prompt_template.format(question=state["question"], answer=state["answer"])
     answer = await model.ainvoke(prompt)
+    print("EVASION ANSWER", answer.content)
     return {
-        "messages": [answer.content],
+        "messages": [AIMessage(answer.content)],
         "classification": state["classification"],
         "question": state["question"],
         "answer": state["answer"],
@@ -121,9 +140,9 @@ async def confusion(state: GuidanceState) -> GuidanceState:
     )
     prompt = prompt_template.format(question=state["question"], answer=state["answer"])
     answer = await model.ainvoke(prompt)
-    print("CONFUSION ANSWER -> ", answer)
+    print("CONFUSION ANSWER", answer.content)
     return {
-        "messages": [answer.content],
+        "messages": [AIMessage(answer.content)],
         "classification": state["classification"],
         "question": state["question"],
         "answer": state["answer"],
@@ -173,13 +192,12 @@ async def build_graph() -> CompiledGraph:
     return classify_answers.compile()
 
 
-async def run_answer_classifier(question: str, answer: str) -> dict:
+async def run_answer_classifier(messages: list[MessageDict]) -> dict:
     graph = await build_graph()
+    messages_to_send = convert_msg_dict_to_langgraph_format(messages)
     result = await graph.ainvoke(
         {
-            "question": question,
-            "answer": answer,
-            "messages": [],
+            "messages": messages_to_send,
             "classification": "",
         }
     )

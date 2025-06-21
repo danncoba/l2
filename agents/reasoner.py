@@ -192,19 +192,25 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
             irregularities_num = 0
     response = await guidance_graph.ainvoke(
         {
-            "question": state["messages"][-2].content,
-            "answer": state["messages"][-1].content,
+            "messages": state["messages"],
             "irregularity_amount": irregularities_num,
         }
     )
     message_to_respond = []
     if len(response["messages"]) > 0:
         message_to_respond = [response["messages"][-1]]
+
+    print("ANSWER CATEGORIZATION", response)
     return {
         "grades": state["grades"],
         "messages": message_to_respond,
-        "interrupt_state": {},
         "number_of_irregularities": irregularities_num,
+        "spellcheck_response": None,
+        "reasoner_response": None,
+        "interrupt_state": {},
+        "is_ambiguous": False,
+        "ambiguous_output": response["classification"],
+        "final_result": None,
     }
 
 
@@ -249,7 +255,7 @@ async def ambiguity_resolver(state: ReasonerState) -> ReasonerState:
 async def next_step(
     state: ReasonerState,
 ) -> Literal["deeply_classify", "ask_clarification"]:
-    if state["is_ambiguous"]:
+    if state["ambiguous_output"] != "direct":
         return "ask_clarification"
     return "deeply_classify"
 
@@ -338,14 +344,12 @@ async def human(state: ReasonerState) -> ReasonerState:
 
 
 builder.add_node("answer_classifier", answer_classifier)
-builder.add_node("ambiguity", ambiguity_resolver)
 builder.add_node("ask_clarification", ask_clarification)
 builder.add_node("deeply_classify", deeply_classify)
 builder.add_node("reasoner", reasoner)
 builder.add_edge(START, "answer_classifier")
-builder.add_edge("answer_classifier", "ambiguity")
-builder.add_conditional_edges("ambiguity", next_step)
-builder.add_edge("ask_clarification", "ambiguity")
+builder.add_conditional_edges("answer_classifier", next_step)
+builder.add_edge("ask_clarification", "deeply_classify")
 builder.add_edge("deeply_classify", "reasoner")
 builder.add_edge("reasoner", END)
 
@@ -395,14 +399,18 @@ async def reasoner_run(
             if "__interrupt__" in chunk:
                 interrupt_happened = True
                 interrupt_value = chunk["__interrupt__"][0].value["answer_to_revisit"]
-                message_val = "Interrupt happened"
+                message_val = ""
             else:
+                if "final_result" in chunk[actual_type] is not None:
+                    if hasattr(
+                        chunk[actual_type]["final_result"], "message_to_the_user"
+                    ):
+                        message_val = chunk[actual_type][
+                            "final_result"
+                        ].message_to_the_user
                 if len(chunk[actual_type]["messages"]) > 0:
+                    print("WHY DO MESSAGES NEVER GO IN")
                     message_val = chunk[actual_type]["messages"][-1].content
-                elif "final_result" in chunk[actual_type] is not None:
-                    if hasattr(chunk[actual_type]["final_result"], "message_to_the_user"):
-                        message_val = chunk[actual_type]["final_result"].message_to_the_user
-
 
             yield json.dumps(
                 {
