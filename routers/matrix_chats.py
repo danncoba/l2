@@ -237,21 +237,23 @@ async def save_after_processing(
         response = json.loads(chunk)
         print("CHUNK RESPONSE REASONER -> ", response)
         if response["interrupt_happened"]:
-            print("INTERRUPT HAPPENED RESPONSE {response}")
-            # notification_request = CreateNotificationRequestBase(
-            #     notification_type="INTERRUPT",
-            #     user_id=None,
-            #     status="UNREAD",
-            #     chat_uuid=thread_id,
-            #     message=response["message"],
-            #     user_group="ADMIN",
-            # )
-            # await notification_service.create(notification_request)
+            print(f"INTERRUPT HAPPENED RESPONSE {response}")
+            if response["should_admin_continue"]:
+                notification_request = CreateNotificationRequestBase(
+                    notification_type="INTERRUPT",
+                    user_id=None,
+                    status="UNREAD",
+                    chat_uuid=thread_id,
+                    message=response["message"],
+                    user_group="ADMIN",
+                )
+                await notification_service.create(notification_request)
             yield MessageDict(
                 msg_type="ai",
                 message=response["message"],
                 is_execution_blocked=True,
                 is_ambiguous=True,
+                should_admin_continue=response["should_admin_continue"],
             ).model_dump_json()
         else:
             if (
@@ -284,3 +286,7 @@ async def save_after_processing(
                         grade_id=final_classification.final_class_id
                     ),
                 )
+        yield MessageDict(
+            msg_type="ai",
+            message=response["message"],
+        ).model_dump_json()

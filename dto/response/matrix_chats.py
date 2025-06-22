@@ -13,6 +13,7 @@ class MessageDict(BaseModel):
     is_execution_blocked: bool = False
     are_separate_messages: bool = False
     is_ambiguous: bool = False
+    should_admin_continue: bool = False
 
 
 class MatrixChatResponseBase(BaseModel):

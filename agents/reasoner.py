@@ -189,7 +189,7 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
     response: GuidanceHelperStdOutput = None
     async for chunk in provide_guidance(state["messages"]):
         print("ANSWER RESPONSE", chunk)
-        if  "structured_response" in chunk:
+        if "structured_response" in chunk:
             if isinstance(chunk["structured_response"], GuidanceHelperStdOutput):
                 response = chunk["structured_response"]
     print("GUIDANCE RESPONSE", response)
@@ -388,6 +388,7 @@ async def reasoner_run(
                 processing_type = "Finalizing"
             print("PROCESSING TYPE", processing_type)
             if "__interrupt__" in chunk:
+                print(f"INTERRUPT RESPONSE {chunk}")
                 interrupt_happened = True
                 interrupt_value = chunk["__interrupt__"][0].value["answer_to_revisit"]
                 message_val = ""
@@ -401,6 +402,7 @@ async def reasoner_run(
                         ].message_to_the_user
                 if len(chunk[actual_type]["messages"]) > 0:
                     print("WHY DO MESSAGES NEVER GO IN")
+                    should_admin_continue = chunk[actual_type]["should_admin_continue"]
                     message_val = chunk[actual_type]["messages"][-1].content
                     print(f"MESSAGE VAL {message_val}")
 
@@ -419,6 +421,7 @@ async def reasoner_run(
                         )
                         else ""
                     ),
+                    "should_admin_continue": should_admin_continue,
                 }
             )
 

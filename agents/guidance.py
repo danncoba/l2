@@ -245,7 +245,9 @@ class GuidanceHelperStdOutput(BaseModel):
         description="The expertise user has self evaluated himself with"
     )
     expertise_id: int = Field(description="The expertise or grade ID")
-    should_admin_be_involved: bool = Field(description="Whether the admin should be involved if user is evading the topic or fooling around")
+    should_admin_be_involved: bool = Field(
+        description="Whether the admin should be involved if user is evading the topic or fooling around"
+    )
     message: str = Field(description="Message to send to the user")
 
 
