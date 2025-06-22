@@ -284,8 +284,3 @@ async def save_after_processing(
                         grade_id=final_classification.final_class_id
                     ),
                 )
-
-        yield MessageDict(
-            msg_type="ai",
-            message=response["message"],
-        ).model_dump_json()

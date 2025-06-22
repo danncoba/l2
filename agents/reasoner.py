@@ -310,17 +310,23 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
 
 
 async def human(state: ReasonerState) -> ReasonerState:
-    print("HUMAN REASONER")
+    interrupt_val = {
+        "answer_to_revisit": state["messages"][-2].content,
+    }
+    value = interrupt(
+        interrupt_val,
+    )
+    print("HUMAN IN THE LOOP RESPONSE")
     return {
         "grades": state["grades"],
-        "messages": [],
+        "messages": [value],
         "spellcheck_response": state["spellcheck_response"],
         "reasoner_response": state["reasoner_response"],
         "interrupt_state": {},
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
-        "should_admin_continue": state["should_admin_continue"],
+        "should_admin_continue": True,
         "final_result": state["final_result"],
     }
 
@@ -368,6 +374,7 @@ async def reasoner_run(
             processing_type = ""
             actual_type = list(chunk.keys())[0]
             message_val = ""
+            should_admin_continue = False
             print("ACTUAL TYPE", actual_type)
             if actual_type == "answer_classifier":
                 processing_type = "Classifying answer"
@@ -395,6 +402,7 @@ async def reasoner_run(
                 if len(chunk[actual_type]["messages"]) > 0:
                     print("WHY DO MESSAGES NEVER GO IN")
                     message_val = chunk[actual_type]["messages"][-1].content
+                    print(f"MESSAGE VAL {message_val}")
 
             yield json.dumps(
                 {

@@ -271,7 +271,6 @@ async def provide_guidance(msgs: List[str]) -> GuidanceHelperStdOutput:
             coroutine=get_grades_or_expertise,
         )
     ]
-    prompt = hub.pull("hwchase17/react")
     intermediate_steps = []
 
     system_msg = """
