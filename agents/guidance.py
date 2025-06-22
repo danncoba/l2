@@ -1,9 +1,15 @@
+from langchain import hub
+from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import StructuredTool
+
+from db.db import get_session
+from db.models import Grade
 from dto.response.matrix_chats import MessageDict
 import os
-from typing import TypedDict, Annotated, Literal
+from typing import TypedDict, Annotated, Literal, List, Any
 
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
+from langchain_core.messages import AIMessage, HumanMessage, BaseMessage, SystemMessage
 from langgraph.graph.graph import CompiledGraph
 from langgraph.types import interrupt, Command
 from langgraph.graph import StateGraph, START, END, add_messages
@@ -11,6 +17,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
+from service.service import BaseService
 from utils.common import convert_msg_dict_to_langgraph_format
 
 load_dotenv()
@@ -228,3 +235,67 @@ async def run_answer_classifier(messages: list[MessageDict]) -> dict:
     )
     print(result)
     return result
+
+
+class GuidanceHelperStdOutput(BaseModel):
+    has_user_answered: bool = Field(
+        description="Whether the user has correctly answered the topic at hand"
+    )
+    expertise_level: str = Field(
+        description="The expertise user has self evaluated himself with"
+    )
+    expertise_id: int = Field(description="The expertise or grade ID")
+    should_admin_be_involved: bool = Field(description="Whether the admin should be involved if user is evading the topic or fooling around")
+    message: str = Field(description="Message to send to the user")
+
+
+async def get_grades_or_expertise() -> List[Grade]:
+    """
+    Useful tool to retrieve current grades or expertise level grading system
+    :return: List of json representing those grades and all their fields
+    """
+    async for session in get_session():
+        service: BaseService[Grade, int, Any, Any] = BaseService(Grade, session)
+        all_db_grades = await service.list_all()
+        all_grades_json: List[str] = []
+        for grade in all_db_grades:
+            json_grade = grade.model_dump_json()
+            all_grades_json.append(json_grade)
+        return all_grades_json
+
+
+async def provide_guidance(msgs: List[str]) -> GuidanceHelperStdOutput:
+    tools = [
+        StructuredTool.from_function(
+            function=get_grades_or_expertise,
+            coroutine=get_grades_or_expertise,
+        )
+    ]
+    prompt = hub.pull("hwchase17/react")
+    intermediate_steps = []
+
+    system_msg = """
+    You are helping the user to properly grade their expertise in the mentioned field.
+    Everything you help him with should be done by utilizing the tools or around the topic
+    of helping him populate his expertise level on the topic.
+    Do not discuss anything except from the provided context.
+    You are guiding the user to evaluate himself on provided topic.
+    Do not discuss anything (any other topic) except from the ones provided in topic!
+    Do not chat about other topics with the user, guide him how to populate his expertise with the grades provided
+    Warn the user if answering with unrelated topics or evading to answer the question will be escalated by involving managers!
+    Topic: {context}
+    If the user is evading to answer the question and is not asking any questions related to the topic for 4 or 5 messages
+    please involve admin
+    When the user answers with proper categorization of skills return only that categorization!
+    """
+    agent = create_react_agent(
+        model=model, tools=tools, response_format=GuidanceHelperStdOutput
+    )
+    async for chunk in agent.astream(
+        {
+            "messages": [SystemMessage(system_msg)] + msgs,
+            "context": msgs[0],
+            "intermediate_steps": intermediate_steps,
+        }
+    ):
+        yield chunk

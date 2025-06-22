@@ -16,7 +16,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 
-from agents.guidance import build_graph
+from agents.guidance import build_graph, provide_guidance, GuidanceHelperStdOutput
 from dto.response.grades import GradeResponseBase
 from dto.response.matrix_chats import MessageDict
 
@@ -64,6 +64,7 @@ class ReasonerState(TypedDict):
     interrupt_state: dict[str, str]
     is_ambiguous: bool
     ambiguous_output: Optional[str]
+    should_admin_continue: bool
     number_of_irregularities: Optional[int]
     final_result: Optional[FinalClassificationStdOutput]
 
@@ -185,82 +186,58 @@ builder = StateGraph(ReasonerState)
 
 
 async def answer_classifier(state: ReasonerState) -> ReasonerState:
-    guidance_graph = await build_graph()
-    irregularities_num = 0
-    if "number_of_irregularities" in state:
-        if state["number_of_irregularities"] is None:
-            irregularities_num = 0
-    response = await guidance_graph.ainvoke(
-        {
-            "messages": state["messages"],
-            "irregularity_amount": irregularities_num,
-        }
-    )
-    message_to_respond = []
-    if len(response["messages"]) > 0:
-        message_to_respond = [response["messages"][-1]]
+    response: GuidanceHelperStdOutput = None
+    async for chunk in provide_guidance(state["messages"]):
+        print("ANSWER RESPONSE", chunk)
+        if  "structured_response" in chunk:
+            if isinstance(chunk["structured_response"], GuidanceHelperStdOutput):
+                response = chunk["structured_response"]
+    print("GUIDANCE RESPONSE", response)
+    # guidance_graph = await build_graph()
+    # irregularities_num = 0
+    # if "number_of_irregularities" in state:
+    #     if state["number_of_irregularities"] is None:
+    #         irregularities_num = 0
+    # response = await guidance_graph.ainvoke(
+    #     {
+    #         "messages": state["messages"],
+    #         "irregularity_amount": irregularities_num,
+    #     }
+    # )
+    # message_to_respond = []
+    # if len(response["messages"]) > 0:
+    #     message_to_respond = [response["messages"][-1]]
+    #
+    # print("ANSWER CATEGORIZATION", response)
 
-    print("ANSWER CATEGORIZATION", response)
     return {
         "grades": state["grades"],
-        "messages": message_to_respond,
-        "number_of_irregularities": irregularities_num,
+        "messages": [AIMessage(response.message)],
+        "number_of_irregularities": 0,
         "spellcheck_response": None,
         "reasoner_response": None,
         "interrupt_state": {},
         "is_ambiguous": False,
-        "ambiguous_output": response["classification"],
-        "final_result": None,
-    }
-
-
-async def ambiguity_resolver(state: ReasonerState) -> ReasonerState:
-    message = ChatPromptTemplate.from_messages(
-        (
-            "system",
-            """
-            You are responsible to understand is there any ambiguity in answer from the user?
-            User was asked to provide an answer about their expertise in the categories.
-            Check whether one of the answers corresponds to the categories provided. It does not have to be in the same
-            wording!
-            If the answer is ambiguous (not related to any category) please respond that this is not related with the question
-            and reiterate the question
-
-            Categories: {categories}
-            Answer: {answer}
-            """,
-        )
-    )
-    print("AMBIGUOUS RESOLVER IN STATE", state)
-    structured_output_model = model.with_structured_output(AmbiguousStdOutput)
-    msg = message.format(
-        categories=state["grades"], answer=state["messages"][-1].content
-    )
-    response = await structured_output_model.ainvoke(
-        state["messages"] + [AIMessage(msg)]
-    )
-    return {
-        "grades": state["grades"],
-        "messages": [AIMessage(response.question)],
-        "spellcheck_response": response,
-        "reasoner_response": None,
-        "interrupt_state": {},
-        "is_ambiguous": response.is_ambiguous,
-        "ambiguous_output": response.question,
-        "number_of_irregularities": state["number_of_irregularities"],
+        "ambiguous_output": "direct" if response.has_user_answered else "indirect",
+        "should_admin_continue": response.should_admin_be_involved,
         "final_result": None,
     }
 
 
 async def next_step(
     state: ReasonerState,
-) -> Literal["deeply_classify", "ask_clarification"]:
+) -> Literal["deeply_classify", "ask_clarification", "human"]:
+    print("NEXT STEP")
+    print(f"{state}")
+    if state["should_admin_continue"]:
+        return "human"
     if state["ambiguous_output"] != "direct":
         return "ask_clarification"
     return "deeply_classify"
 
 
 async def ask_clarification(state: ReasonerState) -> ReasonerState:
+    print("Ask clarification")
     interrupt_val = {
         "answer_to_revisit": state["messages"][-2].content,
     }
@@ -274,11 +251,13 @@ async def ask_clarification(state: ReasonerState) -> ReasonerState:
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
+        "should_admin_continue": state["should_admin_continue"],
         "final_result": None,
     }
 
 
 async def deeply_classify(state: ReasonerState) -> ReasonerState:
+    print("Deeply classify")
     async for class_chunk in classify.astream(
         {"msgs": state["messages"], "finished_state": None, "grades": state["grades"]}
     ):
@@ -296,6 +275,7 @@ async def deeply_classify(state: ReasonerState) -> ReasonerState:
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
+        "should_admin_continue": state["should_admin_continue"],
         "final_result": None,
     }
 
@@ -324,6 +304,7 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
+        "should_admin_continue": state["should_admin_continue"],
         "final_result": response,
     }
 
@@ -339,6 +320,7 @@ async def human(state: ReasonerState) -> ReasonerState:
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
+        "should_admin_continue": state["should_admin_continue"],
         "final_result": state["final_result"],
     }
 
@@ -346,12 +328,14 @@ async def human(state: ReasonerState) -> ReasonerState:
 builder.add_node("answer_classifier", answer_classifier)
 builder.add_node("ask_clarification", ask_clarification)
 builder.add_node("deeply_classify", deeply_classify)
+builder.add_node("human", human)
 builder.add_node("reasoner", reasoner)
 builder.add_edge(START, "answer_classifier")
 builder.add_conditional_edges("answer_classifier", next_step)
 builder.add_edge("ask_clarification", "deeply_classify")
 builder.add_edge("deeply_classify", "reasoner")
 builder.add_edge("reasoner", END)
+builder.add_edge("human", "reasoner")
 
 full_graph = builder.compile()
 
