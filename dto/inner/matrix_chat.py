@@ -12,4 +12,4 @@ class CreateMatrixChatBase(BaseModel):
 
 
 class UpdateMatrixChatStatusBase(BaseModel):
-    status: Literal["IN_PROGRESS", "COMPLETED", "FAILED"]
+    status: Literal["IN_PROGRESS", "COMPLETED", "FAILED", "BLOCKED"]

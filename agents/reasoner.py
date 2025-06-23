@@ -310,6 +310,7 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
 
 
 async def human(state: ReasonerState) -> ReasonerState:
+    print("HUMAN IN THE LOOP")
     interrupt_val = {
         "answer_to_revisit": state["messages"][-2].content,
     }
@@ -340,8 +341,8 @@ builder.add_edge(START, "answer_classifier")
 builder.add_conditional_edges("answer_classifier", next_step)
 builder.add_edge("ask_clarification", "deeply_classify")
 builder.add_edge("deeply_classify", "reasoner")
+builder.add_edge("human", "deeply_classify")
 builder.add_edge("reasoner", END)
-builder.add_edge("human", "reasoner")
 
 full_graph = builder.compile()
 
@@ -360,7 +361,11 @@ async def reasoner_run(
 ) -> AsyncGenerator[str, Any]:
     async for graph in get_graph():
         config = {"configurable": {"thread_id": thread_id}}
-
+        interrupt_happened = False
+        interrupt_value = ""
+        processing_type = ""
+        message_val = ""
+        should_admin_continue = False
         async for chunk in graph.astream(
             {
                 "messages": msgs,
@@ -368,13 +373,8 @@ async def reasoner_run(
             },
             config,
         ):
-            print("async chunk", chunk)
-            interrupt_happened = False
-            interrupt_value = ""
-            processing_type = ""
             actual_type = list(chunk.keys())[0]
-            message_val = ""
-            should_admin_continue = False
+            print("async chunk", chunk)
             print("ACTUAL TYPE", actual_type)
             if actual_type == "answer_classifier":
                 processing_type = "Classifying answer"
@@ -393,6 +393,7 @@ async def reasoner_run(
                 interrupt_value = chunk["__interrupt__"][0].value["answer_to_revisit"]
                 message_val = ""
             else:
+                should_admin_continue = chunk[actual_type]["should_admin_continue"]
                 if "final_result" in chunk[actual_type] is not None:
                     if hasattr(
                         chunk[actual_type]["final_result"], "message_to_the_user"
@@ -402,7 +403,6 @@ async def reasoner_run(
                         ].message_to_the_user
                 if len(chunk[actual_type]["messages"]) > 0:
                     print("WHY DO MESSAGES NEVER GO IN")
-                    should_admin_continue = chunk[actual_type]["should_admin_continue"]
                     message_val = chunk[actual_type]["messages"][-1].content
                     print(f"MESSAGE VAL {message_val}")
 
@@ -433,3 +433,4 @@ async def run_interrupted(thread_id: uuid.UUID, unblock_value: str):
         unblock_response = await graph.ainvoke(
             Command(resume=unblock_value), config=config
         )
+        return unblock_response

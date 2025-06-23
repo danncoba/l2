@@ -4,6 +4,7 @@ import time
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry import trace
+from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.sdk.trace import TracerProvider
@@ -22,19 +23,18 @@ from routers.skills import skills_router
 from routers.users import users_router
 
 # Configure resource
-resource = Resource.create({
-    "service.name": "htec-morpheus",
-    "service.version": "1.0.0",
-    "deployment.environment": "development"
-})
+resource = Resource.create(
+    {
+        "service.name": "htec-morpheus",
+        "service.version": "1.0.0",
+        "deployment.environment": "development",
+    }
+)
 
 trace.set_tracer_provider(TracerProvider(resource=resource))
 tracer = trace.get_tracer(__name__)
 
-otlp_trace_exporter = OTLPSpanExporter(
-    endpoint="http://localhost:4317",
-    insecure=True
-)
+otlp_trace_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
 
 # Add span processor
 span_processor = BatchSpanProcessor(otlp_trace_exporter)
@@ -44,10 +44,7 @@ trace.get_tracer_provider().add_span_processor(span_processor)
 logger_provider = LoggerProvider(resource=resource)
 
 # OTLP Log Exporter
-otlp_log_exporter = OTLPLogExporter(
-    endpoint="http://localhost:4317",
-    insecure=True
-)
+otlp_log_exporter = OTLPLogExporter(endpoint="http://localhost:4317", insecure=True)
 
 # Add log processor
 log_processor = BatchLogRecordProcessor(otlp_log_exporter)
@@ -57,6 +54,12 @@ logger_provider.add_log_record_processor(log_processor)
 handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
 logging.getLogger().addHandler(handler)
 logging.getLogger().setLevel(logging.INFO)
+set_logger_provider(logger_provider)
+
+logger = logging.getLogger(__name__)
+
+logger.info("This log message will be sent via OpenTelemetry!")
+logger.warning("Another log message with a warning level.")
 
 app = FastAPI(
     title="Morpheus @ HTEC",

@@ -22,7 +22,7 @@ processors:
   resource:
     attributes:
       - key: service.name
-        value: "my-service"
+        value: "htec-morpheus"
         action: upsert
       - key: service.version
         value: "1.0.0"
@@ -38,7 +38,7 @@ processors:
 exporters:
   # Loki exporter for logs
   loki:
-    endpoint: http://localhost:3100/loki/api/v1/push
+    endpoint: http://loki:3100/loki/api/v1/push
 
   # Debug exporter for troubleshooting
   debug:

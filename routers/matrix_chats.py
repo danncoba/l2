@@ -201,7 +201,7 @@ async def post_interrupt_resolution(
     notification_service: BaseService[
         Notification, int, CreateNotificationRequestBase, Any
     ] = BaseService(Notification, session)
-    await run_interrupted(chat_id, create_dto.grade)
+    response = await run_interrupted(chat_id, create_dto.grade)
     return MessageDict(
         msg_type="admin_user",
         message="Successfully resolved the unknown answer",
@@ -238,16 +238,16 @@ async def save_after_processing(
         print("CHUNK RESPONSE REASONER -> ", response)
         if response["interrupt_happened"]:
             print(f"INTERRUPT HAPPENED RESPONSE {response}")
-            if response["should_admin_continue"]:
-                notification_request = CreateNotificationRequestBase(
-                    notification_type="INTERRUPT",
-                    user_id=None,
-                    status="UNREAD",
-                    chat_uuid=thread_id,
-                    message=response["message"],
-                    user_group="ADMIN",
-                )
-                await notification_service.create(notification_request)
+            await chat_service.update(
+                thread_id, UpdateMatrixChatStatusBase(status="BLOCKED")
+            )
+            await notification_service.create(CreateNotificationRequestBase(
+                notification_type="INTERRUPT",
+                chat_uuid=thread_id,
+                status="UNREAD",
+                user_group="ADMIN",
+                message=f"Your involvement is required for chat id {thread_id}",
+            ))
             yield MessageDict(
                 msg_type="ai",
                 message=response["message"],
@@ -289,4 +289,5 @@ async def save_after_processing(
         yield MessageDict(
             msg_type="ai",
             message=response["message"],
+            should_admin_continue=response["should_admin_continue"],
         ).model_dump_json()
