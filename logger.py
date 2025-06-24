@@ -1,7 +1,7 @@
 # Configure resource
 import logging
 
-from opentelemetry import trace
+from opentelemetry import trace, _logs as logs
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -19,14 +19,17 @@ resource = Resource.create(
     }
 )
 
+
 trace.set_tracer_provider(TracerProvider(resource=resource))
 tracer = trace.get_tracer(__name__)
 
-otlp_trace_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+# otlp_trace_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+
+
 
 # Add span processor
-span_processor = BatchSpanProcessor(otlp_trace_exporter)
-trace.get_tracer_provider().add_span_processor(span_processor)
+# span_processor = BatchSpanProcessor(otlp_trace_exporter)
+# trace.get_tracer_provider().add_span_processor(span_processor)
 
 # Set up logging
 logger_provider = LoggerProvider(resource=resource)
@@ -35,6 +38,7 @@ logger_provider = LoggerProvider(resource=resource)
 otlp_log_exporter = OTLPLogExporter(endpoint="http://localhost:4317", insecure=True)
 
 # Add log processor
+logs.set_logger_provider(logger_provider)
 log_processor = BatchLogRecordProcessor(otlp_log_exporter)
 logger_provider.add_log_record_processor(log_processor)
 
@@ -45,3 +49,4 @@ logging.getLogger().setLevel(logging.DEBUG)
 set_logger_provider(logger_provider)
 
 logger = logging.getLogger(__name__)
+logger.info("Something happening")

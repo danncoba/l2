@@ -69,7 +69,6 @@ async def get_matrix(
         filters=filters,
     )
     response_list: List[UserMatrixResponseBase] = []
-    logger.info(f"Getting matrix for user {user_id}")
     for skill in all_skills:
         full_skill = await get_matrix_response_dto(skill)
         response_list.append(full_skill)
@@ -86,6 +85,7 @@ async def get_matrix(
     grade_id: Optional[int] = None,
     null_grade: bool = False,
 ) -> List[UserMatrixResponseBase]:
+    logger.info(f"Getting skill id for user {user_id}")
     service: BaseService[UserSkills, int, Any, Any] = BaseService(UserSkills, session)
     filters = {
         "user_id": user_id,

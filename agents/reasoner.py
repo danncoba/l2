@@ -17,6 +17,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 
 from agents.guidance import build_graph, provide_guidance, GuidanceHelperStdOutput
+from db.db import get_session
 from dto.response.grades import GradeResponseBase
 from dto.response.matrix_chats import MessageDict
 
@@ -349,6 +350,7 @@ full_graph = builder.compile()
 
 async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
     async with AsyncConnectionPool(db_url) as conn:
+    # async for session in get_session():
         checkpointer = AsyncPostgresSaver(
             conn=conn,
         )

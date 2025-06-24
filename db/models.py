@@ -147,6 +147,8 @@ class MatrixChat(AsyncAttrs, SQLModel, table=True):
     updated_at: datetime = Field(
         sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
     )
+    timespan_start: int = Field(sa_column=Column(BigInteger, nullable=False))
+    timespan_end: int = Field(sa_column=Column(BigInteger, nullable=False))
     status: str = Field(sa_column=Column(String(20), nullable=False))
     user: User = Relationship(back_populates="matrix_chats")
     skill: Skill = Relationship(back_populates="matrix_chats")

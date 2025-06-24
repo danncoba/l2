@@ -35,7 +35,8 @@ services:
     ports:
       - "4317:4317"   # OTLP gRPC receiver
       - "4318:4318"   # OTLP HTTP receiver
-      - "8889:8889"   # Prometheus metrics
+      - "8888:8888"   # Collector metrics
+      - "8887:8887"
 
     # Grafana for visualization
   grafana:
