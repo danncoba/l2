@@ -23,6 +23,7 @@ celery = {extras = ["redis"], version = "*"}
 opentelemetry-api = "*"
 opentelemetry-sdk = "*"
 opentelemetry-exporter-otlp = "*"
+minio = "*"
 
 [dev-packages]
 pip = "*"

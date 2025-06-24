@@ -426,7 +426,7 @@ async def reasoner_run(
             )
 
 
-async def run_interrupted(thread_id: uuid.UUID, unblock_value: str):
+async def run_interrupted(thread_id: uuid.UUID, unblock_value: str) -> dict[str, Any]:
     async for graph in get_graph():
         config = {"configurable": {"thread_id": thread_id}}
         state = await graph.aget_state(config)
@@ -434,3 +434,4 @@ async def run_interrupted(thread_id: uuid.UUID, unblock_value: str):
             Command(resume=unblock_value), config=config
         )
         return unblock_response
+    return None

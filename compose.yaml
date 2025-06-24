@@ -51,7 +51,21 @@ services:
     depends_on:
       - loki
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"  # MinIO API port
+      - "9001:9001"  # MinIO Console port
+    volumes:
+      - minio-data:/data  # Persistent storage for MinIO data
+    environment:
+      MINIO_ROOT_USER: minioadmin  # Root user for MinIO
+      MINIO_ROOT_PASSWORD: minioadmin  # Root password for MinIO
+    command: server /data --console-address ":9001"
+
 
 volumes:
   pgdata:
   grafana-storage:
+  minio-data:

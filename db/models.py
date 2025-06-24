@@ -3,7 +3,7 @@ from uuid import UUID as UUID4
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import String, Boolean, BigInteger, Integer, Text, DateTime, UUID
+from sqlalchemy import String, Boolean, BigInteger, Integer, Text, DateTime, UUID, JSON
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import SQLModel, Field, Column, Relationship, ForeignKey
 
@@ -150,3 +150,48 @@ class MatrixChat(AsyncAttrs, SQLModel, table=True):
     status: str = Field(sa_column=Column(String(20), nullable=False))
     user: User = Relationship(back_populates="matrix_chats")
     skill: Skill = Relationship(back_populates="matrix_chats")
+
+
+class Runnable(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "runnables"
+    thread_id: uuid.UUID = Field(
+        sa_column=Column(
+            UUID, primary_key=True, nullable=False, autoincrement=False, unique=True
+        )
+    )
+    recursion_limit: int = Field(sa_column=Column(Integer, nullable=False))
+    max_concurrency: int = Field(sa_column=Column(Integer, nullable=True))
+    run_id: uuid.UUID = Field(sa_column=Column(UUID, nullable=False, unique=True))
+    run_name: str = Field(sa_column=Column(String, nullable=True))
+    runnable_metadata: List["RunnableMetadata"] = Relationship(back_populates="thread")
+    runnable_tags: List["RunnableTag"] = Relationship(back_populates="thread")
+
+
+class RunnableMetadata(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "runnables_metadata"
+    metadata_id: uuid.UUID = Field(
+        sa_column=Column(
+            UUID, primary_key=True, nullable=False, autoincrement=False, unique=True
+        )
+    )
+    thread_id: uuid.UUID = Field(
+        sa_column=Column(UUID, ForeignKey("runnables.thread_id"), nullable=False)
+    )
+    run_id: uuid.UUID = Field(sa_column=Column(UUID, nullable=False))
+    key: str = Field(sa_column=Column(String, nullable=False))
+    value: str = Field(sa_column=Column(JSON, nullable=False))
+    thread: Runnable = Relationship(back_populates="runnable_metadata")
+
+
+class RunnableTag(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "runnables_tags"
+    tag_id: uuid.UUID = Field(
+        sa_column=Column(
+            UUID, primary_key=True, nullable=False, autoincrement=False, unique=True
+        )
+    )
+    thread_id: uuid.UUID = Field(
+        sa_column=Column(UUID, ForeignKey("runnables.thread_id"), nullable=False)
+    )
+    value: str = Field(sa_column=Column(String, nullable=False))
+    thread: Runnable = Relationship(back_populates="runnable_tags")
