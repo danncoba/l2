@@ -13,6 +13,7 @@ from dto.request.matrix import (
     PopulateMatrixRequestAllBase,
 )
 from dto.response.matrix import UserMatrixResponseBase
+from logger import logger
 from service.service import BaseService
 from security import security
 from utils.common import common_parameters
@@ -53,6 +54,7 @@ async def get_matrix(
     grade_id: Optional[int] = None,
     null_grade: bool = False,
 ) -> List[UserMatrixResponseBase]:
+    logger.info(f"Getting matrix for user {user_id}")
     service: BaseService[UserSkills, int, Any, Any] = BaseService(UserSkills, session)
     filters = {
         "user_id": user_id,
@@ -67,6 +69,7 @@ async def get_matrix(
         filters=filters,
     )
     response_list: List[UserMatrixResponseBase] = []
+    logger.info(f"Getting matrix for user {user_id}")
     for skill in all_skills:
         full_skill = await get_matrix_response_dto(skill)
         response_list.append(full_skill)
