@@ -23,6 +23,8 @@ class MatrixChatResponseBase(BaseModel):
     created_at: datetime
     status: str
     updated_at: datetime
+    timespan_start: int
+    timespan_end: int
 
 
 class MatrixMessageChatResponse(BaseModel):

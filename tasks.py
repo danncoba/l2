@@ -6,10 +6,12 @@ from datetime import datetime, timedelta, date
 from typing import Any, Tuple
 
 from celery import shared_task
+from sqlalchemy import text
 from sqlmodel import select
 
 from db.db import get_session
 from db.models import User, MatrixChat, UserSkills
+from dto.inner.matrix_chat import CreateMatrixChatBase
 from service.filters import FilterModel, FilterType
 from service.service import BaseService
 
@@ -28,17 +30,34 @@ async def get_required_users():
     start, end = await get_start_and_end()
     print(f"GET REQUIRED USERS START -> {start} END {end}")
     async for session in get_session():
-        service: BaseService[MatrixChat, uuid.UUID, Any, Any] = BaseService(
-            MatrixChat, session
-        )
-        filters = [
-            FilterModel(f_type=FilterType.GTE, f_attribute="timespan_start", f_value=start),
-            FilterModel(f_type=FilterType.LTE, f_attribute="timespan_end", f_value=end),
-        ]
-        all_chats = await service.filter(
-            filters, limit=1000000000000, offset=0
-        )
-        print("ALL CHATS", all_chats)
+        query = text("""
+                     SELECT user_id, skill_id FROM users_skills
+                     EXCEPT
+                     SELECT user_id, skill_id FROM matrix_chats
+                     WHERE timespan_start >= :timespan_start AND timespan_end <= :timespan_end;
+                     """)
+
+        results = await session.execute(query, {
+            "timespan_start": start,
+            "timespan_end": end,
+        })
+        print("TOTAL RESULTS ->", results.rowcount)
+        all_to_create = []
+        for result in results:
+            chat = CreateMatrixChatBase(
+                id=uuid.uuid4(),
+                user_id=result[0],
+                skill_id=result[1],
+                status="IN_PROGRESS",
+                timespan_start=start,
+                timespan_end=end,
+            )
+            all_to_create.append(chat)
+
+        service: BaseService[MatrixChat, uuid.UUID, CreateMatrixChatBase, Any] = BaseService(MatrixChat, session)
+        all_results = await service.create_many(all_to_create)
+        return all_results
+
 
 
 @shared_task
