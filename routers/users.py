@@ -1,4 +1,5 @@
-from typing import Sequence, Annotated, Optional
+import uuid
+from typing import Sequence, Annotated, Optional, Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
@@ -6,11 +7,12 @@ from fastapi.security import HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.db import get_session
-from db.models import User
+from db.models import User, MatrixChat
 from dto.request.users import UserCreateRequest, UserRequestBase
 from dto.response.users import UserResponseBase, FullUserResponseBase
 from service.service import BaseService
 from security import security, get_current_user
+from tasks import get_start_and_end, get_required_users
 from utils.common import common_parameters
 
 users_router = APIRouter(prefix="/api/v1/users", tags=["Users"])
@@ -90,3 +92,11 @@ async def choose_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return FullUserResponseBase(**user.model_dump())
+
+
+@users_router.get("/test/test", response_model=Any)
+async def test_get_users(
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    return await get_required_users()
+

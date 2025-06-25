@@ -14,6 +14,8 @@ from sqlalchemy import Row, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, or_
 
+from service.filters import FilterModel, FilterType
+
 T = TypeVar("T")
 I = TypeVar("I")
 CR = TypeVar("CR")
@@ -71,6 +73,40 @@ class __AbstractService(ABC, Generic[T, I, CR, UR]):
         offset: Optional[int] = 0,
     ) -> Sequence[Row[Any] | RowMapping | Any]:
         statement = select(self.model).where(getattr(self.model, field).in_(in_list))
+        statement = statement.limit(limit).offset(offset)
+        result = await self.session.execute(statement)
+        models = result.scalars().all()
+        return models
+
+    async def filter(
+        self,
+        fields: List[FilterModel],
+        offset: int = 0,
+        limit: int = 20,
+    ) -> Sequence[Row[Any] | RowMapping | Any]:
+        statement = select(self.model)
+        for field in fields:
+            if field.f_type == FilterType.EQUALS:
+                statement = select(self.model).where(
+                    getattr(self.model, field.f_attribute) == field.f_value
+                )
+            elif field.f_type == FilterType.GTE:
+                statement = select(self.model).where(
+                    getattr(self.model, field.f_attribute) >= field.f_value
+                )
+            elif field.f_type == FilterType.LTE:
+                statement = select(self.model).where(
+                    getattr(self.model, field.f_attribute) <= field.f_value
+                )
+            elif field.f_type == FilterType.GT:
+                statement = select(self.model).where(
+                    getattr(self.model, field.f_attribute) > field.f_value
+                )
+            elif field.f_type == FilterType.LT:
+                statement = select(self.model).where(
+                    getattr(self.model, field.f_attribute) < field.f_value
+                )
+
         statement = statement.limit(limit).offset(offset)
         result = await self.session.execute(statement)
         models = result.scalars().all()
