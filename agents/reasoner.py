@@ -145,7 +145,7 @@ async def reflect(state: ClassifierState) -> ClassifierState:
 
 
 async def correct_found(
-        state: ClassifierState,
+    state: ClassifierState,
 ) -> Literal["reasoner", "human", "finish"]:
     if state["msgs"][-1].content == "finish":
         print("CORRECT RESPONSE finish")
@@ -241,7 +241,7 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
 
 
 async def next_step(
-        state: ReasonerState,
+    state: ReasonerState,
 ) -> Literal["deeply_classify", "ask_clarification", "human"]:
     print("NEXT STEP")
     print(f"{state}")
@@ -275,12 +275,12 @@ async def ask_clarification(state: ReasonerState) -> ReasonerState:
 async def deeply_classify(state: ReasonerState) -> ReasonerState:
     print("Deeply classify")
     async for class_chunk in classify.astream(
-            {"msgs": state["messages"], "finished_state": None, "grades": state["grades"]}
+        {"msgs": state["messages"], "finished_state": None, "grades": state["grades"]}
     ):
         print("DEEPLY CLASSIFY RESPONSE", class_chunk)
         if (
-                "finished_state" in class_chunk
-                and class_chunk["finished_state"] is not None
+            "finished_state" in class_chunk
+            and class_chunk["finished_state"] is not None
         ):
             msg = class_chunk["finished_state"]
 
@@ -368,7 +368,7 @@ full_graph = builder.compile()
 async def get_checkpointer():
     checkpointer = AsyncPostgresSaver.from_conn_string(db_url)
     # Check if it's a context manager
-    if hasattr(checkpointer, '__aenter__'):
+    if hasattr(checkpointer, "__aenter__"):
         # It's a context manager, use it with async with
         async with checkpointer as checkpointer:
             yield checkpointer
@@ -386,8 +386,9 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
         graph = builder.compile(checkpointer=checkpointer)
         yield graph
 
+
 async def reasoner_run(
-        thread_id: uuid.UUID, msgs: List[MessageDict], grades: List[GradeResponseBase]
+    thread_id: uuid.UUID, msgs: List[MessageDict], grades: List[GradeResponseBase]
 ) -> AsyncGenerator[str, Any]:
     async with get_graph() as graph:
         config = {"configurable": {"thread_id": thread_id}}
@@ -397,11 +398,11 @@ async def reasoner_run(
         message_val = ""
         should_admin_continue = False
         async for chunk in graph.astream(
-                {
-                    "messages": msgs,
-                    "grades": grades,
-                },
-                config,
+            {
+                "messages": msgs,
+                "grades": grades,
+            },
+            config,
         ):
             actual_type = list(chunk.keys())[0]
             print("async chunk", chunk)
@@ -426,7 +427,7 @@ async def reasoner_run(
                 should_admin_continue = chunk[actual_type]["should_admin_continue"]
                 if "final_result" in chunk[actual_type] is not None:
                     if hasattr(
-                            chunk[actual_type]["final_result"], "message_to_the_user"
+                        chunk[actual_type]["final_result"], "message_to_the_user"
                     ):
                         message_val = chunk[actual_type][
                             "final_result"
@@ -445,7 +446,7 @@ async def reasoner_run(
                     "final_result": (
                         chunk[actual_type]["final_result"].model_dump_json()
                         if "final_result" in chunk[actual_type]
-                           and isinstance(
+                        and isinstance(
                             chunk[actual_type]["final_result"],
                             FinalClassificationStdOutput,
                         )

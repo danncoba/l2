@@ -7,6 +7,7 @@ from sqlalchemy import String, Boolean, BigInteger, Integer, Text, DateTime, UUI
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import SQLModel, Field, Column, Relationship, ForeignKey
 
+
 # op.add_column('users', sa.Column('description', sa.Text, nullable=True))
 #     op.add_column('users', sa.Column('profile_pic', sa.String, nullable=True))
 #     op.add_column('users', sa.Column('city', sa.String(100), nullable=True))

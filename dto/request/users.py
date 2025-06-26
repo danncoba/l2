@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field, EmailStr
 
@@ -12,3 +12,12 @@ class UserRequestBase(BaseModel):
 
 class UserCreateRequest(UserRequestBase):
     password: str = Field(max_length=100, min_length=4)
+
+
+class FullUserRequest(UserCreateRequest):
+    description: Optional[str] = None
+    profile_pic: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    phone_number: Optional[str] = None
+    additional_data: Optional[dict] = None
