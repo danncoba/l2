@@ -7,7 +7,12 @@ from sqlalchemy import String, Boolean, BigInteger, Integer, Text, DateTime, UUI
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import SQLModel, Field, Column, Relationship, ForeignKey
 
-
+# op.add_column('users', sa.Column('description', sa.Text, nullable=True))
+#     op.add_column('users', sa.Column('profile_pic', sa.String, nullable=True))
+#     op.add_column('users', sa.Column('city', sa.String(100), nullable=True))
+#     op.add_column('users', sa.Column('address', sa.String(100), nullable=True))
+#     op.add_column('users', sa.Column('phone_number', sa.String(100), nullable=True))
+#     op.add_column('users', sa.Column('additional_data', sa.JSON, nullable=True))
 class User(SQLModel, table=True):
     """
     User table named users
@@ -25,6 +30,12 @@ class User(SQLModel, table=True):
     email: str = Field(sa_column=Column(String(100), nullable=False, unique=True))
     password: str = Field(sa_column=Column(String(100), nullable=False))
     is_admin: bool = Field(sa_column=Column(Boolean, default=False, nullable=False))
+    description: str = Field(sa_column=Column(Text, nullable=True))
+    profile_pic: str = Field(sa_column=Column(String, nullable=True))
+    city: str = Field(sa_column=Column(String(100), nullable=True))
+    address: str = Field(sa_column=Column(String(100), nullable=True))
+    phone_number: str = Field(sa_column=Column(String(100), nullable=True))
+    additional_data: str = Field(sa_column=Column(JSON, nullable=True))
 
     skills: List["UserSkills"] = Relationship(back_populates="user")
     notifications: List["Notification"] = Relationship(back_populates="user")

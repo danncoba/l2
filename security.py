@@ -53,3 +53,13 @@ def user_required(current_user: User = Depends(get_current_user)):
         detail="Forbidden",
         headers={"WWW-Authenticate": "Basic"},
     )
+
+
+def user_private(current_user: User = Depends(get_current_user)):
+    if current_user is not None:
+        return True
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden",
+        headers={"WWW-Authenticate": "Basic"},
+    )
