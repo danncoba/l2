@@ -8,7 +8,6 @@ from db.db import get_session
 from db.models import Config
 from dto.request.config import ConfigurationRequestBase
 from dto.response.config import ConfigurationResponseBase
-from dto.response.users import FullUserResponseBase
 from security import security, admin_required
 from service.service import BaseService
 

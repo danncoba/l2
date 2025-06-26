@@ -13,7 +13,7 @@ from sqlmodel import SQLModel, Field, Column, Relationship, ForeignKey
 #     op.add_column('users', sa.Column('address', sa.String(100), nullable=True))
 #     op.add_column('users', sa.Column('phone_number', sa.String(100), nullable=True))
 #     op.add_column('users', sa.Column('additional_data', sa.JSON, nullable=True))
-class User(SQLModel, table=True):
+class User(AsyncAttrs, SQLModel, table=True):
     """
     User table named users
     """

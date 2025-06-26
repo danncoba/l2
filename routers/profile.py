@@ -5,15 +5,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.db import get_session
 from db.models import User
-from dto.response.users import UserResponseBase
+from dto.response.users import UserResponseBase, FullUserResponse
 from security import get_current_user
 
 profile_router = APIRouter(prefix="/api/v1/profile", tags=["Profile"])
 
 
-@profile_router.get("/me", response_model=UserResponseBase)
+@profile_router.get("/me", response_model=FullUserResponse)
 async def choose_user(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Optional[User] = Depends(get_current_user),
-) -> UserResponseBase:
+) -> FullUserResponse:
+    skills = await current_user.awaitable_attrs.skills
+    for skill in skills:
+        await skill.awaitable_attrs.skill
+        await skill.awaitable_attrs.grade
     return current_user
