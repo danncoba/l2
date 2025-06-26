@@ -52,4 +52,5 @@ Thumbs.db
 *.wmv
 
 celerybeat-schedule
-
+celerybeat-schedule-shm
+celerybeat-schedule-wal

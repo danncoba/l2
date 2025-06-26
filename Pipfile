@@ -25,6 +25,7 @@ opentelemetry-sdk = "*"
 opentelemetry-exporter-otlp = "*"
 minio = "*"
 opentelemetry-instrumentation-fastapi = "*"
+asyncpg = "*"
 
 [dev-packages]
 pip = "*"

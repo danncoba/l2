@@ -13,6 +13,7 @@ engine: AsyncEngine = create_async_engine(
     DB_URL,
     echo=False,
     future=True,
+    max_overflow=20,
     pool_pre_ping=True,
     pool_recycle=3600,
     pool_size=10,

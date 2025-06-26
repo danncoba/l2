@@ -1,8 +1,10 @@
 import os
 import json
 import uuid
+from contextlib import asynccontextmanager
 from typing import TypedDict, Annotated, Optional, Literal, Any, List, AsyncGenerator
 
+import langgraph.errors
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph.state import CompiledStateGraph
 from openai.resources.containers.files import content
@@ -15,6 +17,7 @@ from langgraph.types import interrupt, Command
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from agents.guidance import build_graph, provide_guidance, GuidanceHelperStdOutput
 from db.db import get_session
@@ -32,6 +35,16 @@ LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 model = ChatOpenAI(
     model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, verbose=True
 )
+
+
+def multiple_values(a: Any, b: Any) -> Any:
+    print("MULTIPLE VALUES FUNC")
+    print(a, b)
+    if a is None and b is not None:
+        return b
+    elif a is not None and b is None:
+        return a
+    return b
 
 
 class AmbiguousStdOutput(BaseModel):
@@ -71,10 +84,10 @@ class ReasonerState(TypedDict):
 
 
 class ClassifierState(TypedDict):
-    grades: List[GradeResponseBase]
+    grades: Annotated[List[GradeResponseBase], multiple_values]
     msgs: Annotated[list, add_messages]
-    finished_state: Optional[str]
-    interrupt_state: dict[str, str]
+    finished_state: Annotated[str, multiple_values]
+    interrupt_state: Annotated[dict[str, str], multiple_values]
 
 
 classifier_builder = StateGraph(ClassifierState)
@@ -132,7 +145,7 @@ async def reflect(state: ClassifierState) -> ClassifierState:
 
 
 async def correct_found(
-    state: ClassifierState,
+        state: ClassifierState,
 ) -> Literal["reasoner", "human", "finish"]:
     if state["msgs"][-1].content == "finish":
         print("CORRECT RESPONSE finish")
@@ -146,6 +159,7 @@ async def correct_found(
 
 async def finish(state: ClassifierState) -> ClassifierState:
     finished_state = state["msgs"][-2].content
+    print("FINISH RESPONSE", finished_state)
     return {
         "msgs": state["msgs"],
         "finished_state": finished_state,
@@ -162,6 +176,7 @@ async def human(state: ClassifierState) -> ClassifierState:
         interrupt_val,
     )
     print("HUMAN IN THE LOOP RESPONSE")
+    print("FINISH STATE HUMAN", state["finished_state"])
     return {
         "msgs": [AIMessage(value)],
         "finished_state": state["finished_state"],
@@ -226,7 +241,7 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
 
 
 async def next_step(
-    state: ReasonerState,
+        state: ReasonerState,
 ) -> Literal["deeply_classify", "ask_clarification", "human"]:
     print("NEXT STEP")
     print(f"{state}")
@@ -260,13 +275,15 @@ async def ask_clarification(state: ReasonerState) -> ReasonerState:
 async def deeply_classify(state: ReasonerState) -> ReasonerState:
     print("Deeply classify")
     async for class_chunk in classify.astream(
-        {"msgs": state["messages"], "finished_state": None, "grades": state["grades"]}
+            {"msgs": state["messages"], "finished_state": None, "grades": state["grades"]}
     ):
+        print("DEEPLY CLASSIFY RESPONSE", class_chunk)
         if (
-            "finished_state" in class_chunk
-            and class_chunk["finished_state"] is not None
+                "finished_state" in class_chunk
+                and class_chunk["finished_state"] is not None
         ):
             msg = class_chunk["finished_state"]
+
     return {
         "grades": state["grades"],
         "messages": [],
@@ -311,7 +328,6 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
 
 
 async def human(state: ReasonerState) -> ReasonerState:
-    print("HUMAN IN THE LOOP")
     interrupt_val = {
         "answer_to_revisit": state["messages"][-2].content,
     }
@@ -348,20 +364,32 @@ builder.add_edge("reasoner", END)
 full_graph = builder.compile()
 
 
+@asynccontextmanager
+async def get_checkpointer():
+    checkpointer = AsyncPostgresSaver.from_conn_string(db_url)
+    # Check if it's a context manager
+    if hasattr(checkpointer, '__aenter__'):
+        # It's a context manager, use it with async with
+        async with checkpointer as checkpointer:
+            yield checkpointer
+    else:
+        # It's the actual checkpointer
+        try:
+            yield checkpointer
+        finally:
+            await checkpointer.aclose()
+
+
+@asynccontextmanager
 async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
-    async with AsyncConnectionPool(db_url) as conn:
-        # async for session in get_session():
-        checkpointer = AsyncPostgresSaver(
-            conn=conn,
-        )
+    async with get_checkpointer() as checkpointer:
         graph = builder.compile(checkpointer=checkpointer)
         yield graph
 
-
 async def reasoner_run(
-    thread_id: uuid.UUID, msgs: List[MessageDict], grades: List[GradeResponseBase]
+        thread_id: uuid.UUID, msgs: List[MessageDict], grades: List[GradeResponseBase]
 ) -> AsyncGenerator[str, Any]:
-    async for graph in get_graph():
+    async with get_graph() as graph:
         config = {"configurable": {"thread_id": thread_id}}
         interrupt_happened = False
         interrupt_value = ""
@@ -369,11 +397,11 @@ async def reasoner_run(
         message_val = ""
         should_admin_continue = False
         async for chunk in graph.astream(
-            {
-                "messages": msgs,
-                "grades": grades,
-            },
-            config,
+                {
+                    "messages": msgs,
+                    "grades": grades,
+                },
+                config,
         ):
             actual_type = list(chunk.keys())[0]
             print("async chunk", chunk)
@@ -398,7 +426,7 @@ async def reasoner_run(
                 should_admin_continue = chunk[actual_type]["should_admin_continue"]
                 if "final_result" in chunk[actual_type] is not None:
                     if hasattr(
-                        chunk[actual_type]["final_result"], "message_to_the_user"
+                            chunk[actual_type]["final_result"], "message_to_the_user"
                     ):
                         message_val = chunk[actual_type][
                             "final_result"
@@ -417,7 +445,7 @@ async def reasoner_run(
                     "final_result": (
                         chunk[actual_type]["final_result"].model_dump_json()
                         if "final_result" in chunk[actual_type]
-                        and isinstance(
+                           and isinstance(
                             chunk[actual_type]["final_result"],
                             FinalClassificationStdOutput,
                         )
@@ -429,7 +457,7 @@ async def reasoner_run(
 
 
 async def run_interrupted(thread_id: uuid.UUID, unblock_value: str) -> dict[str, Any]:
-    async for graph in get_graph():
+    async with get_graph() as graph:
         config = {"configurable": {"thread_id": thread_id}}
         state = await graph.aget_state(config)
         unblock_response = await graph.ainvoke(

@@ -99,4 +99,3 @@ async def test_get_users(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     return await get_required_users()
-

@@ -197,3 +197,15 @@ class RunnableTag(AsyncAttrs, SQLModel, table=True):
     )
     value: str = Field(sa_column=Column(String, nullable=False))
     thread: Runnable = Relationship(back_populates="runnable_tags")
+
+
+class Config(SQLModel, table=True):
+    __tablename__ = "configs"
+    id: int = Field(sa_column=Column(BigInteger, primary_key=True, autoincrement=False))
+    matrix_cadence: str = Field(sa_column=Column(String, nullable=False))
+    matrix_interval: int = Field(sa_column=Column(BigInteger, nullable=False))
+    matrix_duration: int = Field(sa_column=Column(BigInteger, nullable=False))
+    matrix_ending_at: int = Field(sa_column=Column(BigInteger, nullable=False))
+    matrix_starting_at: int = Field(sa_column=Column(BigInteger, nullable=False))
+    matrix_reminders: bool = Field(sa_column=Column(Boolean, nullable=False))
+    reminders_format: str = Field(sa_column=Column(Text, nullable=True))

@@ -102,7 +102,7 @@ async def get_matrix_chat(
     service: BaseService[MatrixChat, uuid.UUID, Any, Any] = BaseService(
         MatrixChat, session
     )
-    async for graph in get_graph():
+    async with get_graph() as graph:
         config = {"configurable": {"thread_id": chat_id}}
         messages = []
         chat = await service.get(chat_id)
@@ -230,7 +230,7 @@ async def post_interrupt_resolution(
 
 
 async def get_current_state(thread_id: uuid.UUID) -> StateSnapshot | None:
-    async for graph in get_graph():
+    async with get_graph() as graph:
         config = {"configurable": {"thread_id": thread_id}}
         current_state = await graph.aget_state(config)
         return current_state
