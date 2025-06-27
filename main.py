@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
+from routers.analytics import analytics_router
 from routers.configs import config_router
 from routers.grades import grades_router
 from routers.matrix import matrix_router
@@ -44,6 +45,7 @@ app.include_router(config_router)
 app.include_router(skills_router)
 app.include_router(matrix_router)
 app.include_router(matrix_chats_router)
+app.include_router(analytics_router)
 
 
 FastAPIInstrumentor.instrument_app(app)
