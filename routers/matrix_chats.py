@@ -20,7 +20,7 @@ from agents.reasoner import (
 )
 from agents.welcome import welcome_agent
 from db.db import get_session
-from db.models import Grade, MatrixChat, Notification, UserSkills
+from db.models import Grade, MatrixChat, Notification, UserSkills, User, Skill
 from dto.inner.matrix_chat import UpdateMatrixChatStatusBase
 from dto.inner.notifications import CreateNotificationRequestBase
 from dto.inner.user_skills import UpdateUserSkillsRequest
@@ -33,7 +33,7 @@ from dto.response.matrix_chats import (
     MatrixChatResponseBase,
     MessageDict,
 )
-from security import security
+from security import security, get_current_user
 from service.service import BaseService
 from utils.common import convert_msg_dict_to_langgraph_format
 
@@ -164,6 +164,9 @@ async def post_matrix_message(
         MatrixChat, uuid.UUID, Any, UpdateMatrixChatStatusBase
     ] = BaseService(MatrixChat, session)
     service: BaseService[Grade, int, Any, Any] = BaseService(Grade, session)
+    user_skill_service: BaseService[UserSkills, uuid.UUID, Any, Any] = BaseService(
+        UserSkills, session
+    )
     current_chat = await chat_service.get(chat_id)
     if current_chat.status == "COMPLETED":
         raise HTTPException(
@@ -175,6 +178,15 @@ async def post_matrix_message(
     for grade in grades:
         all_grades.append(grade.model_dump_json())
     state = await get_current_state(chat_id)
+    users_skill = await user_skill_service.list_all(
+        filters={
+            "skill_id": current_chat.skill_id,
+            "user_id": current_chat.user_id,
+        }
+    )
+    skill = await users_skill[0].awaitable_attrs.skill
+    user = await users_skill[0].awaitable_attrs.user
+
     messages_to_send = []
     grades_to_send = []
     print(f"STATE VALUES {state.values}")
@@ -188,7 +200,13 @@ async def post_matrix_message(
         grades_to_send = all_grades
     return StreamingResponse(
         save_after_processing(
-            chat_id, messages_to_send, grades_to_send, session, current_chat
+            chat_id,
+            messages_to_send,
+            grades_to_send,
+            skill,
+            user,
+            session,
+            current_chat,
         ),
         media_type="application/json",
     )
@@ -246,10 +264,12 @@ async def save_after_processing(
     thread_id: uuid.UUID,
     msgs: List[MessageDict],
     grades: List[GradeResponseBase],
+    skill: Skill,
+    user: User,
     session: Annotated[AsyncSession, Depends(get_session)],
     current_chat: MatrixChat,
 ) -> AsyncGenerator[str, Any]:
-    async for chunk in reasoner_run(thread_id, msgs, grades):
+    async for chunk in reasoner_run(thread_id, msgs, grades, skill, user):
         async for processed_chunk in process_chunk(
             thread_id, current_chat, chunk, session
         ):

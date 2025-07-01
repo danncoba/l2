@@ -1,27 +1,23 @@
-import os
 import json
+import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import TypedDict, Annotated, Optional, Literal, Any, List, AsyncGenerator
 
-import langgraph.errors
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langgraph.graph.state import CompiledStateGraph
-from openai.resources.containers.files import content
-from psycopg_pool import AsyncConnectionPool
-from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph import add_messages
-from langgraph.types import interrupt, Command
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
-from sqlalchemy.ext.asyncio import create_async_engine
+from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph import add_messages
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import interrupt, Command
+from pydantic import BaseModel, Field
 
-from agents.guidance import build_graph, provide_guidance, GuidanceHelperStdOutput
+from agents.guidance import provide_guidance, GuidanceHelperStdOutput
 from agents.llm_callback import CustomLlmTrackerCallback
-from db.db import get_session
+from db.models import Skill, User
 from dto.response.grades import GradeResponseBase
 from dto.response.matrix_chats import MessageDict
 
@@ -41,11 +37,6 @@ model = ChatOpenAI(
     verbose=True,
     callbacks=[CustomLlmTrackerCallback("reasoner")],
 )
-
-
-# model = ChatOpenAI(
-#     model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, verbose=True
-# )
 
 
 def multiple_values(a: Any, b: Any) -> Any:
@@ -81,6 +72,8 @@ class ReasonerOutputBase(BaseModel):
 
 class ReasonerState(TypedDict):
     grades: List[GradeResponseBase]
+    user: User
+    skill: Skill
     messages: Annotated[list, add_messages]
     spellcheck_response: Optional[SpellcheckBase]
     reasoner_response: Optional[ReasonerOutputBase]
@@ -211,7 +204,7 @@ builder = StateGraph(ReasonerState)
 
 async def answer_classifier(state: ReasonerState) -> ReasonerState:
     response: GuidanceHelperStdOutput = None
-    async for chunk in provide_guidance(state["messages"]):
+    async for chunk in provide_guidance(state["messages"], state["user"], state["skill"]):
         print("ANSWER CLASSIFIER", chunk)
         if isinstance(chunk, GuidanceHelperStdOutput):
             response = chunk
@@ -227,6 +220,8 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
                 "ambiguous_output": (
                     "direct" if response.has_user_answered else "indirect"
                 ),
+                "user": state["user"],
+                "skill": state["skill"],
                 "should_admin_continue": response.should_admin_be_involved,
                 "final_result": None,
             }
@@ -241,6 +236,8 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
         "interrupt_state": {},
         "is_ambiguous": False,
         "ambiguous_output": None,
+        "user": state["user"],
+        "skill": state["skill"],
         "should_admin_continue": False,
         "final_result": None,
     }
@@ -270,6 +267,8 @@ async def ask_clarification(state: ReasonerState) -> ReasonerState:
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
+        "user": state["user"],
+        "skill": state["skill"],
         "should_admin_continue": state["should_admin_continue"],
         "final_result": None,
     }
@@ -294,6 +293,8 @@ async def deeply_classify(state: ReasonerState) -> ReasonerState:
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
+        "user": state["user"],
+        "skill": state["skill"],
         "should_admin_continue": state["should_admin_continue"],
         "final_result": None,
     }
@@ -326,6 +327,8 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
+        "user": state["user"],
+        "skill": state["skill"],
         "should_admin_continue": state["should_admin_continue"],
         "final_result": full_response,
     }
@@ -347,6 +350,8 @@ async def human(state: ReasonerState) -> ReasonerState:
         "is_ambiguous": state["is_ambiguous"],
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
+        "user": state["user"],
+        "skill": state["skill"],
         "should_admin_continue": True,
         "final_result": state["final_result"],
     }
@@ -391,7 +396,11 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
 
 
 async def reasoner_run(
-    thread_id: uuid.UUID, msgs: List[MessageDict], grades: List[GradeResponseBase]
+    thread_id: uuid.UUID,
+    msgs: List[MessageDict],
+    grades: List[GradeResponseBase],
+    skill: Skill,
+    user: User,
 ) -> AsyncGenerator[str, Any]:
     async with get_graph() as graph:
         config = {"configurable": {"thread_id": thread_id}}
@@ -404,6 +413,8 @@ async def reasoner_run(
             {
                 "messages": msgs,
                 "grades": grades,
+                "skill": skill,
+                "user": user,
             },
             config,
         ):
