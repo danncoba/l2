@@ -39,6 +39,8 @@ model = ChatOpenAI(
     streaming=True,
     verbose=True,
 )
+
+
 # model = ChatOpenAI(
 #     model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, verbose=True
 # )
@@ -155,7 +157,7 @@ async def reflect(state: ClassifierState) -> ClassifierState:
 
 
 async def correct_found(
-    state: ClassifierState,
+        state: ClassifierState,
 ) -> Literal["reasoner", "human", "finish"]:
     if state["msgs"][-1].content == "finish":
         return "finish"
@@ -211,6 +213,7 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
         print("ANSWER CLASSIFIER", chunk)
         if isinstance(chunk, GuidanceHelperStdOutput):
             response = chunk
+            print("ACTUAL RETURN")
             return {
                 "grades": state["grades"],
                 "messages": [AIMessage(response.message)],
@@ -224,9 +227,23 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
                 "final_result": None,
             }
 
+    print("THIS FUCKING RETURN")
+    return {
+        "grades": state["grades"],
+        "messages": [],
+        "number_of_irregularities": 0,
+        "spellcheck_response": None,
+        "reasoner_response": None,
+        "interrupt_state": {},
+        "is_ambiguous": False,
+        "ambiguous_output": None,
+        "should_admin_continue": False,
+        "final_result": None,
+    }
+
 
 async def next_step(
-    state: ReasonerState,
+        state: ReasonerState,
 ) -> Literal["deeply_classify", "ask_clarification", "human"]:
     if state["should_admin_continue"]:
         return "human"
@@ -256,11 +273,11 @@ async def ask_clarification(state: ReasonerState) -> ReasonerState:
 
 async def deeply_classify(state: ReasonerState) -> ReasonerState:
     async for class_chunk in classify.astream(
-        {"msgs": state["messages"], "finished_state": None, "grades": state["grades"]}
+            {"msgs": state["messages"], "finished_state": None, "grades": state["grades"]}
     ):
         if (
-            "finished_state" in class_chunk
-            and class_chunk["finished_state"] is not None
+                "finished_state" in class_chunk
+                and class_chunk["finished_state"] is not None
         ):
             msg = class_chunk["finished_state"]
 
@@ -372,7 +389,7 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
 
 
 async def reasoner_run(
-    thread_id: uuid.UUID, msgs: List[MessageDict], grades: List[GradeResponseBase]
+        thread_id: uuid.UUID, msgs: List[MessageDict], grades: List[GradeResponseBase]
 ) -> AsyncGenerator[str, Any]:
     async with get_graph() as graph:
         config = {"configurable": {"thread_id": thread_id}}
@@ -382,11 +399,11 @@ async def reasoner_run(
         message_val = ""
         should_admin_continue = False
         async for chunk in graph.astream(
-            {
-                "messages": msgs,
-                "grades": grades,
-            },
-            config,
+                {
+                    "messages": msgs,
+                    "grades": grades,
+                },
+                config,
         ):
             actual_type = list(chunk.keys())[0]
 
@@ -408,7 +425,7 @@ async def reasoner_run(
                 should_admin_continue = chunk[actual_type]["should_admin_continue"]
                 if "final_result" in chunk[actual_type] is not None:
                     if hasattr(
-                        chunk[actual_type]["final_result"], "message_to_the_user"
+                            chunk[actual_type]["final_result"], "message_to_the_user"
                     ):
                         message_val = chunk[actual_type][
                             "final_result"
@@ -425,7 +442,7 @@ async def reasoner_run(
                     "final_result": (
                         chunk[actual_type]["final_result"].model_dump_json()
                         if "final_result" in chunk[actual_type]
-                        and isinstance(
+                           and isinstance(
                             chunk[actual_type]["final_result"],
                             FinalClassificationStdOutput,
                         )

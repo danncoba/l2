@@ -16,7 +16,7 @@ from langgraph.types import interrupt, Command
 from langgraph.graph import StateGraph, START, END, add_messages
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from service.service import BaseService
 from utils.common import convert_msg_dict_to_langgraph_format
@@ -28,6 +28,7 @@ LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
 
 model = ChatOpenAI(
+    temperature=0,
     model=LITE_MODEL,
     api_key=LITE_LLM_API_KEY,
     base_url=LITE_LLM_URL,
@@ -286,7 +287,7 @@ async def provide_guidance(
 
     system_msg = """
     You are helping the user to properly grade their expertise in the mentioned field.
-    Everything you help him with should be done by utilizing the tools or around the topic
+    Everything you help him with should be done by utilizing the tools or explaining the topics mentioned in the context
     of helping him populate his expertise level on the topic.
     Do not discuss anything except from the provided context.
     You are guiding the user to evaluate himself on provided topic.
@@ -295,13 +296,15 @@ async def provide_guidance(
     Warn the user if answering with unrelated topics or evading to answer the question will be escalated by involving managers!
     Topic: {context}
     If the user is evading to answer the question and is not asking any questions related to the topic for 4 or 5 messages
-    please involve admin
+    please involve admin. Do not immediately involve admin, wait for 4 or 5 evasions to involve admin!
+    If you're answering the schema use json schema message to populate your answer. 
+    Always, always use the json schema to return answer!
     Always answer in json with following schema:
-    has_user_answered: bool (Whether the user has correctly answered the topic at hand)
-    expertise_level: str (The expertise user has self evaluated himself with, if evaluated)
-    expertise_id: int (The expertise or grade ID, if evaluated)
-    should_admin_be_involved: bool (Whether the admin should be involved if user is evading the topic or fooling around)
-    message: str (Message to send to the user, you want to show)
+    has_user_answered: bool (Whether the user has classified himself)
+    expertise_level: str (The expertise user has self evaluated himself with, if evaluated if not than empty)
+    expertise_id: int (The expertise or grade ID, if evaluated if not than 0)
+    should_admin_be_involved: bool (Whether the admin should be involved if user is evading the topic or fooling around for 4 or 5 attempts)
+    message: str (Message to send to the user)
     """
     agent = create_react_agent(model=model, tools=tools)
     async for chunk in agent.astream(
@@ -311,12 +314,20 @@ async def provide_guidance(
                 "intermediate_steps": intermediate_steps,
             }
     ):
-        print(chunk)
-        print(type(chunk))
-        if "agent" in chunk:
-            if "messages" in chunk["agent"]:
-                msg_content = chunk["agent"]["messages"][-1].content
-                if msg_content != "":
-                    msg_content = msg_content.replace("```json", "").replace("```", "")
-                    ch = GuidanceHelperStdOutput.model_validate_json(msg_content)
+        print("PROVIDE FEEDBACK", chunk)
+        if "messages" in chunk:
+            msg_content = chunk["messages"][-1]
+            if isinstance(msg_content, AIMessage) and msg_content.content != "":
+                content = msg_content.content
+                content = content.replace("```json", "").replace("```", "")
+                try:
+                    ch = GuidanceHelperStdOutput.model_validate_json(content)
                     yield ch
+                except ValidationError:
+                    yield GuidanceHelperStdOutput(
+                        has_user_answered=False,
+                        expertise_level="",
+                        expertise_id=0,
+                        should_admin_be_involved=False,
+                        message=content,
+                    )

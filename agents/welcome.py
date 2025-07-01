@@ -19,6 +19,7 @@ LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
 
 model = ChatOpenAI(
+    temperature=0,
     base_url=LITE_LLM_URL,
     api_key=LITE_LLM_API_KEY,
     model=LITE_MODEL,
