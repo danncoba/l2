@@ -28,13 +28,20 @@ load_dotenv()
 db_url = os.getenv("PG_VECTOR_DATABASE_URL")
 
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
-# LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
-# LITE_MODEL = os.getenv("OPENAI_MODEL")
+LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
+LITE_MODEL = os.getenv("OPENAI_MODEL")
 
-# model = ChatOpenAI(model=LITE_MODEL, api_key=LITE_LLM_API_KEY, base_url=LITE_LLM_URL)
 model = ChatOpenAI(
-    model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, verbose=True
+    model=LITE_MODEL,
+    temperature=0,
+    api_key=LITE_LLM_API_KEY,
+    base_url=LITE_LLM_URL,
+    streaming=True,
+    verbose=True,
 )
+# model = ChatOpenAI(
+#     model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, verbose=True
+# )
 
 
 def multiple_values(a: Any, b: Any) -> Any:
@@ -101,14 +108,20 @@ async def reasoner(state: ClassifierState) -> ClassifierState:
             Based on the user question you need to categorize into one of the following categories:
             {categories}
             Respond only with the category recognized!
+            Response format json:
+            classification: str, description=Final classification based on the categories
+            classification_explanation: str, description=Final classification explanation (why it was classified in this way)
+            certainty_level: int, description=How precise is your classification
             """,
         )
     )
     msg = message.format(categories=state["grades"])
-    model_structured = model.with_structured_output(ReasonerOutputBase)
-    response = await model_structured.ainvoke(state["msgs"] + [msg])
+    response = await model.ainvoke(state["msgs"] + [msg])
+    msg_output = response.content
+    msg_output = msg_output.replace("```json", "").replace("```", "")
+    res = ReasonerOutputBase.model_validate_json(msg_output)
     return {
-        "msgs": [AIMessage(response.classification)],
+        "msgs": [AIMessage(res.classification)],
         "finished_state": None,
         "grades": state["grades"],
         "interrupt_state": {},
@@ -205,9 +218,8 @@ async def answer_classifier(state: ReasonerState) -> ReasonerState:
     response: GuidanceHelperStdOutput = None
     async for chunk in provide_guidance(state["messages"]):
         print("ANSWER RESPONSE", chunk)
-        if "structured_response" in chunk:
-            if isinstance(chunk["structured_response"], GuidanceHelperStdOutput):
-                response = chunk["structured_response"]
+        if isinstance(chunk, GuidanceHelperStdOutput):
+            response = chunk
     print("GUIDANCE RESPONSE", response)
     # guidance_graph = await build_graph()
     # irregularities_num = 0

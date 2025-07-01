@@ -14,14 +14,18 @@ load_dotenv()
 
 
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
-print("LLM API KEY: ", LITE_LLM_API_KEY)
-# LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
-# LITE_MODEL = os.getenv("OPENAI_MODEL")
+# print("LLM API KEY: ", LITE_LLM_API_KEY)
+LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
+LITE_MODEL = os.getenv("OPENAI_MODEL")
 
-# model = ChatOpenAI(
-#     base_url=LITE_LLM_URL, api_key=LITE_LLM_API_KEY, model=LITE_MODEL, streaming=True
-# )
-model = ChatOpenAI(model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True)
+model = ChatOpenAI(
+    base_url=LITE_LLM_URL,
+    api_key=LITE_LLM_API_KEY,
+    model=LITE_MODEL,
+    streaming=True,
+    verbose=True,
+)
+# model = ChatOpenAI(model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, max_tokens=500)
 
 
 async def welcome_agent(user_id: int, skill_id: int, session: AsyncSession):

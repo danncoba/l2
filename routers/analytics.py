@@ -13,7 +13,9 @@ from security import get_current_user, admin_required
 from utils.common import common_parameters
 
 analytics_router = APIRouter(
-    prefix="/api/v1/analytics", tags=["Analytics"], dependencies=[Depends(admin_required)]
+    prefix="/api/v1/analytics",
+    tags=["Analytics"],
+    dependencies=[Depends(admin_required)],
 )
 
 
