@@ -1,6 +1,7 @@
 import json
 import uuid
 from typing import Annotated, Any, List, AsyncGenerator
+from opentelemetry import trace
 
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
@@ -40,6 +41,8 @@ matrix_chats_router = APIRouter(
     prefix="/api/v1/matrix-chats", tags=["Matrix Validations Chat"]
 )
 
+tracer = trace.get_tracer(__name__)
+
 
 async def send_msg_by_msg(msgs: List[MessageDict]):
     for msg in msgs:
@@ -54,26 +57,29 @@ async def get_matrix_users_chats(
     session: Annotated[AsyncSession, Depends(get_session)],
     credentials: Annotated[HTTPBasicCredentials, Depends(security)],
 ) -> List[MatrixChatResponseBase]:
-    service: BaseService[MatrixChat, uuid.UUID, Any, Any] = BaseService(
-        MatrixChat, session
-    )
-    filters = {
-        "user_id": user_id,
-    }
-    all_user_validations = await service.list_all(
-        filters=filters, order_by=[MatrixChat.created_at.desc()]
-    )
-    all_matrices: List[MatrixChatResponseBase] = []
-    for user_validation in all_user_validations:
-        user = await user_validation.awaitable_attrs.user
-        skill = await user_validation.awaitable_attrs.skill
-        matrix = MatrixChatResponseBase(
-            **user_validation.model_dump(),
-            user=user.model_dump(),
-            skill=skill.model_dump(),
+    with tracer.start_as_current_span("get_matrix_chats_for_user") as span:
+        span.set_attribute("user.id", user_id)
+        span.set_attribute("operation.type", "read")
+        service: BaseService[MatrixChat, uuid.UUID, Any, Any] = BaseService(
+            MatrixChat, session
         )
-        all_matrices.append(matrix)
-    return all_matrices
+        filters = {
+            "user_id": user_id,
+        }
+        all_user_validations = await service.list_all(
+            filters=filters, order_by=[MatrixChat.created_at.desc()]
+        )
+        all_matrices: List[MatrixChatResponseBase] = []
+        for user_validation in all_user_validations:
+            user = await user_validation.awaitable_attrs.user
+            skill = await user_validation.awaitable_attrs.skill
+            matrix = MatrixChatResponseBase(
+                **user_validation.model_dump(),
+                user=user.model_dump(),
+                skill=skill.model_dump(),
+            )
+            all_matrices.append(matrix)
+        return all_matrices
 
 
 @matrix_chats_router.get("/{chat_id}/info", response_model=None)

@@ -26,6 +26,12 @@ exporters:
     endpoint: "http://loki:3100/loki/api/v1/push"
     # Remove format and labels - use only basic config
 
+  # OTLP exporter for traces to Jaeger
+  otlp/jaeger:
+    endpoint: "http://jaeger:4318"
+    tls:
+      insecure: true
+
   debug:
     verbosity: detailed
 
@@ -45,12 +51,12 @@ service:
       processors: [resource, batch]
       exporters: [loki, debug]
 
+    traces:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [otlp/jaeger, debug]
+
 #    metrics:
 #      receivers: [otlp]
 #      processors: [resource, batch]
 #      exporters: [prometheus, debug]
-#
-#    traces:
-#      receivers: [otlp]
-#      processors: [resource, batch]
-#      exporters: [debug]

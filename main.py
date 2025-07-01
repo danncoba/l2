@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from routers.analytics import analytics_router
 from routers.configs import config_router
@@ -13,6 +12,10 @@ from routers.skills import skills_router
 from routers.users import users_router
 
 from logger import logger
+from telemetry import setup_telemetry, instrument_fastapi
+
+# Setup OpenTelemetry tracing
+setup_telemetry()
 
 logger.info("Starting application...")
 
@@ -47,5 +50,5 @@ app.include_router(matrix_router)
 app.include_router(matrix_chats_router)
 app.include_router(analytics_router)
 
-
-FastAPIInstrumentor.instrument_app(app)
+# Instrument FastAPI with OpenTelemetry
+instrument_fastapi(app)

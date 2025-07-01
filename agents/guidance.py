@@ -1,7 +1,6 @@
 from langchain import hub
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import StructuredTool
-from langgraph.pregel.io import AddableUpdatesDict
 
 from db.db import get_session
 from db.models import Grade
@@ -11,7 +10,7 @@ from typing import TypedDict, Annotated, Literal, List, Any, AsyncGenerator
 
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage, SystemMessage
-from langgraph.graph.graph import CompiledGraph
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt, Command
 from langgraph.graph import StateGraph, START, END, add_messages
 from langchain_openai import ChatOpenAI
@@ -191,7 +190,7 @@ async def confusion(state: GuidanceState) -> GuidanceState:
 
 
 async def route_to_individual_helper(
-        state: GuidanceState,
+    state: GuidanceState,
 ) -> Literal["need_help", "evasion", "direct", "confusion"]:
     if state["classification"] == "need_help":
         return "need_help"
@@ -211,7 +210,7 @@ async def direct(state: GuidanceState) -> GuidanceState:
     return state
 
 
-async def build_graph() -> CompiledGraph:
+async def build_graph() -> CompiledStateGraph:
     classify_answers = StateGraph(GuidanceState)
     classify_answers.add_node("classify_answer", classify_answer)
     classify_answers.add_node("evasion", evasion)
@@ -253,6 +252,9 @@ class GuidanceHelperStdOutput(BaseModel):
         description="The expertise user has self evaluated himself with"
     )
     expertise_id: int = Field(description="The expertise or grade ID")
+    is_more_categories_answered: bool = Field(
+        description="if multiple categories have been selected", default=False
+    )
     should_admin_be_involved: bool = Field(
         description="Whether the admin should be involved if user is evading the topic or fooling around"
     )
@@ -275,7 +277,7 @@ async def get_grades_or_expertise() -> List[Grade]:
 
 
 async def provide_guidance(
-        msgs: List[str],
+    msgs: List[str],
 ) -> AsyncGenerator[GuidanceHelperStdOutput, Any]:
     tools = [
         StructuredTool.from_function(
@@ -289,45 +291,50 @@ async def provide_guidance(
     You are helping the user to properly grade their expertise in the mentioned field.
     Everything you help him with should be done by utilizing the tools or explaining the topics mentioned in the context
     of helping him populate his expertise level on the topic.
-    Do not discuss anything except from the provided context.
+    Do not discuss anything except from the provided context, but answer to the user if the question is regarding anything from context!
     You are guiding the user to evaluate himself on provided topic.
     Do not discuss anything (any other topic) except from the ones provided in topic!
     Do not chat about other topics with the user, guide him how to populate his expertise with the grades provided
     Warn the user if answering with unrelated topics or evading to answer the question will be escalated by involving managers!
-    Topic: {context}
-    If the user is evading to answer the question and is not asking any questions related to the topic for 4 or 5 messages
-    please involve admin. Do not immediately involve admin, wait for 4 or 5 evasions to involve admin!
-    If you're answering the schema use json schema message to populate your answer. 
-    Always, always use the json schema to return answer!
-    Always answer in json with following schema:
-    has_user_answered: bool (Whether the user has classified himself)
-    expertise_level: str (The expertise user has self evaluated himself with, if evaluated if not than empty)
-    expertise_id: int (The expertise or grade ID, if evaluated if not than 0)
-    should_admin_be_involved: bool (Whether the admin should be involved if user is evading the topic or fooling around for 4 or 5 attempts)
-    message: str (Message to send to the user)
+    Topic: 
+{context}
+If the user is asking for clarification of anything from the context please provide without additional explanations!
+If the user is evading to answer the question and is not asking any questions related to the topic for 4 or 5 messages
+please involve admin. Do not immediately involve admin, wait for 4 or 5 evasions to involve admin!
+If you're answering the schema use json schema message to populate your answer. 
+Do not return the schema to the user!
+Always, always use the json schema to return answer!
+Always answer in json with following schema:
+has_user_answered: bool (Whether the user has classified himself without any uncertainty )
+expertise_level: str (The expertise user has self evaluated himself with, if evaluated if not than empty)
+is_more_categories_answered: bool (if multiple categories have been selected)
+expertise_id: int (The expertise or grade ID, if evaluated if not than 0)
+should_admin_be_involved: bool (Whether the admin should be involved if user is evading the topic or fooling around for 4 or 5 attempts)
+message: str (Message to send to the user)
     """
     agent = create_react_agent(model=model, tools=tools)
     async for chunk in agent.astream(
-            {
-                "messages": [SystemMessage(system_msg)] + msgs,
-                "context": msgs[0],
-                "intermediate_steps": intermediate_steps,
-            }
+        {
+            "messages": [SystemMessage(system_msg)] + msgs,
+            "context": msgs[0],
+            "intermediate_steps": intermediate_steps,
+        }
     ):
         print("PROVIDE FEEDBACK", chunk)
-        if "messages" in chunk:
-            msg_content = chunk["messages"][-1]
-            if isinstance(msg_content, AIMessage) and msg_content.content != "":
-                content = msg_content.content
-                content = content.replace("```json", "").replace("```", "")
-                try:
-                    ch = GuidanceHelperStdOutput.model_validate_json(content)
-                    yield ch
-                except ValidationError:
-                    yield GuidanceHelperStdOutput(
-                        has_user_answered=False,
-                        expertise_level="",
-                        expertise_id=0,
-                        should_admin_be_involved=False,
-                        message=content,
-                    )
+        if "agent" in chunk:
+            if "messages" in chunk["agent"]:
+                msg_content = chunk["agent"]["messages"][-1]
+                if isinstance(msg_content, AIMessage) and msg_content.content != "":
+                    content = msg_content.content
+                    content = content.replace("```json", "").replace("```", "")
+                    try:
+                        ch = GuidanceHelperStdOutput.model_validate_json(content)
+                        yield ch
+                    except ValidationError:
+                        yield GuidanceHelperStdOutput(
+                            has_user_answered=False,
+                            expertise_level="",
+                            expertise_id=0,
+                            should_admin_be_involved=False,
+                            message=content,
+                        )
