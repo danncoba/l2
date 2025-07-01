@@ -1,6 +1,7 @@
 from langchain import hub
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import StructuredTool
+from langgraph.pregel.io import AddableUpdatesDict
 
 from db.db import get_session
 from db.models import Grade
@@ -33,12 +34,6 @@ model = ChatOpenAI(
     streaming=True,
     verbose=True,
 )
-
-
-# model = ChatOpenAI(
-#     model="gpt-4o",
-#     api_key=LITE_LLM_API_KEY,
-# )
 
 
 class AnswerClassification(BaseModel):
@@ -195,7 +190,7 @@ async def confusion(state: GuidanceState) -> GuidanceState:
 
 
 async def route_to_individual_helper(
-    state: GuidanceState,
+        state: GuidanceState,
 ) -> Literal["need_help", "evasion", "direct", "confusion"]:
     if state["classification"] == "need_help":
         return "need_help"
@@ -279,7 +274,7 @@ async def get_grades_or_expertise() -> List[Grade]:
 
 
 async def provide_guidance(
-    msgs: List[str],
+        msgs: List[str],
 ) -> AsyncGenerator[GuidanceHelperStdOutput, Any]:
     tools = [
         StructuredTool.from_function(
@@ -301,26 +296,27 @@ async def provide_guidance(
     Topic: {context}
     If the user is evading to answer the question and is not asking any questions related to the topic for 4 or 5 messages
     please involve admin
-    When the user answers with proper categorization of skills return only that categorization!
-    Format the response in json:
-    has_user_answered: bool, description=Whether the user has correctly answered the topic at hand
-    expertise_level: str, description=The expertise user has self evaluated himself with
-    expertise_id: int, description=The expertise or grade ID
-    should_admin_be_involved: bool, description=Whether the admin should be involved if user is evading the topic or fooling around
-    message: str, description=Message to send to the user
+    Always answer in json with following schema:
+    has_user_answered: bool (Whether the user has correctly answered the topic at hand)
+    expertise_level: str (The expertise user has self evaluated himself with, if evaluated)
+    expertise_id: int (The expertise or grade ID, if evaluated)
+    should_admin_be_involved: bool (Whether the admin should be involved if user is evading the topic or fooling around)
+    message: str (Message to send to the user, you want to show)
     """
     agent = create_react_agent(model=model, tools=tools)
     async for chunk in agent.astream(
-        {
-            "messages": [SystemMessage(system_msg)] + msgs,
-            "context": msgs[0],
-            "intermediate_steps": intermediate_steps,
-        }
+            {
+                "messages": [SystemMessage(system_msg)] + msgs,
+                "context": msgs[0],
+                "intermediate_steps": intermediate_steps,
+            }
     ):
-        print("GUIDANCE CHUNK", chunk)
-        if "messages" in chunk and isinstance(chunk["messages"][-1], AIMessage):
-            if "has_user_answered" in chunk["messages"][-1].content:
-                msg_content = chunk["messages"][-1].content
-                msg_content = msg_content.replace("```json", "").replace("```", "")
-                ch = GuidanceHelperStdOutput.model_validate_json(msg_content)
-                yield ch
+        print(chunk)
+        print(type(chunk))
+        if "agent" in chunk:
+            if "messages" in chunk["agent"]:
+                msg_content = chunk["agent"]["messages"][-1].content
+                if msg_content != "":
+                    msg_content = msg_content.replace("```json", "").replace("```", "")
+                    ch = GuidanceHelperStdOutput.model_validate_json(msg_content)
+                    yield ch

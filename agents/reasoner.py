@@ -45,8 +45,6 @@ model = ChatOpenAI(
 
 
 def multiple_values(a: Any, b: Any) -> Any:
-    print("MULTIPLE VALUES FUNC")
-    print(a, b)
     if a is None and b is not None:
         return b
     elif a is not None and b is None:
@@ -148,7 +146,6 @@ async def reflect(state: ClassifierState) -> ClassifierState:
         {"state": predicted_state, "msg": input_val, "categories": state["grades"]}
     )
     response = model.invoke(prompt)
-    print("REFLECT RESPONSE", response)
     return {
         "msgs": [HumanMessage(response.content)],
         "finished_state": None,
@@ -161,18 +158,14 @@ async def correct_found(
     state: ClassifierState,
 ) -> Literal["reasoner", "human", "finish"]:
     if state["msgs"][-1].content == "finish":
-        print("CORRECT RESPONSE finish")
         return "finish"
     elif state["msgs"][-1].content == "human":
-        print("CORRECT RESPONSE human")
         return "human"
-    print("CORRECT RESPONSE reasoner")
     return "reasoner"
 
 
 async def finish(state: ClassifierState) -> ClassifierState:
     finished_state = state["msgs"][-2].content
-    print("FINISH RESPONSE", finished_state)
     return {
         "msgs": state["msgs"],
         "finished_state": finished_state,
@@ -188,8 +181,6 @@ async def human(state: ClassifierState) -> ClassifierState:
     value = interrupt(
         interrupt_val,
     )
-    print("HUMAN IN THE LOOP RESPONSE")
-    print("FINISH STATE HUMAN", state["finished_state"])
     return {
         "msgs": [AIMessage(value)],
         "finished_state": state["finished_state"],
@@ -217,46 +208,26 @@ builder = StateGraph(ReasonerState)
 async def answer_classifier(state: ReasonerState) -> ReasonerState:
     response: GuidanceHelperStdOutput = None
     async for chunk in provide_guidance(state["messages"]):
-        print("ANSWER RESPONSE", chunk)
+        print("ANSWER CLASSIFIER", chunk)
         if isinstance(chunk, GuidanceHelperStdOutput):
             response = chunk
-    print("GUIDANCE RESPONSE", response)
-    # guidance_graph = await build_graph()
-    # irregularities_num = 0
-    # if "number_of_irregularities" in state:
-    #     if state["number_of_irregularities"] is None:
-    #         irregularities_num = 0
-    # response = await guidance_graph.ainvoke(
-    #     {
-    #         "messages": state["messages"],
-    #         "irregularity_amount": irregularities_num,
-    #     }
-    # )
-    # message_to_respond = []
-    # if len(response["messages"]) > 0:
-    #     message_to_respond = [response["messages"][-1]]
-    #
-    # print("ANSWER CATEGORIZATION", response)
-
-    return {
-        "grades": state["grades"],
-        "messages": [AIMessage(response.message)],
-        "number_of_irregularities": 0,
-        "spellcheck_response": None,
-        "reasoner_response": None,
-        "interrupt_state": {},
-        "is_ambiguous": False,
-        "ambiguous_output": "direct" if response.has_user_answered else "indirect",
-        "should_admin_continue": response.should_admin_be_involved,
-        "final_result": None,
-    }
+            return {
+                "grades": state["grades"],
+                "messages": [AIMessage(response.message)],
+                "number_of_irregularities": 0,
+                "spellcheck_response": None,
+                "reasoner_response": None,
+                "interrupt_state": {},
+                "is_ambiguous": False,
+                "ambiguous_output": "direct" if response.has_user_answered else "indirect",
+                "should_admin_continue": response.should_admin_be_involved,
+                "final_result": None,
+            }
 
 
 async def next_step(
     state: ReasonerState,
 ) -> Literal["deeply_classify", "ask_clarification", "human"]:
-    print("NEXT STEP")
-    print(f"{state}")
     if state["should_admin_continue"]:
         return "human"
     if state["ambiguous_output"] != "direct":
@@ -265,7 +236,6 @@ async def next_step(
 
 
 async def ask_clarification(state: ReasonerState) -> ReasonerState:
-    print("Ask clarification")
     interrupt_val = {
         "answer_to_revisit": state["messages"][-2].content,
     }
@@ -285,11 +255,9 @@ async def ask_clarification(state: ReasonerState) -> ReasonerState:
 
 
 async def deeply_classify(state: ReasonerState) -> ReasonerState:
-    print("Deeply classify")
     async for class_chunk in classify.astream(
         {"msgs": state["messages"], "finished_state": None, "grades": state["grades"]}
     ):
-        print("DEEPLY CLASSIFY RESPONSE", class_chunk)
         if (
             "finished_state" in class_chunk
             and class_chunk["finished_state"] is not None
@@ -317,14 +285,19 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
         Use one of these categories, labels only, do not display the entire object:
         {grades}
         Do not explain yourself and prolong the conversation!
+        Respond in json format:
+        final_class: str, description=Final classification label
+        final_class_id: int, description=Id of the final classification
+        message_to_the_user: str, description=Message to user
         """
     )
     prompt = prompt_template.invoke({"grades": state["grades"]})
-    structured_output_model = model.with_structured_output(FinalClassificationStdOutput)
-    response = structured_output_model.invoke(
+    response = model.invoke(
         state["messages"] + [HumanMessage(prompt.to_string())]
     )
-    print("REASONER RESPONSE -> ", response)
+    msg = response.content
+    msg = msg.replace("```json", "").replace("```", "")
+    full_response = FinalClassificationStdOutput.model_validate_json(msg)
     return {
         "grades": state["grades"],
         "messages": [],
@@ -335,7 +308,7 @@ async def reasoner(state: ReasonerState) -> ReasonerState:
         "ambiguous_output": state["ambiguous_output"],
         "number_of_irregularities": state["number_of_irregularities"],
         "should_admin_continue": state["should_admin_continue"],
-        "final_result": response,
+        "final_result": full_response,
     }
 
 
@@ -346,7 +319,6 @@ async def human(state: ReasonerState) -> ReasonerState:
     value = interrupt(
         interrupt_val,
     )
-    print("HUMAN IN THE LOOP RESPONSE")
     return {
         "grades": state["grades"],
         "messages": [value],
@@ -417,8 +389,7 @@ async def reasoner_run(
             config,
         ):
             actual_type = list(chunk.keys())[0]
-            print("async chunk", chunk)
-            print("ACTUAL TYPE", actual_type)
+
             if actual_type == "answer_classifier":
                 processing_type = "Classifying answer"
             elif actual_type == "ambiguity":
@@ -429,9 +400,7 @@ async def reasoner_run(
                 processing_type = "Classifying"
             elif actual_type == "reasoner":
                 processing_type = "Finalizing"
-            print("PROCESSING TYPE", processing_type)
             if "__interrupt__" in chunk:
-                print(f"INTERRUPT RESPONSE {chunk}")
                 interrupt_happened = True
                 interrupt_value = chunk["__interrupt__"][0].value["answer_to_revisit"]
                 message_val = ""
@@ -445,9 +414,7 @@ async def reasoner_run(
                             "final_result"
                         ].message_to_the_user
                 if len(chunk[actual_type]["messages"]) > 0:
-                    print("WHY DO MESSAGES NEVER GO IN")
                     message_val = chunk[actual_type]["messages"][-1].content
-                    print(f"MESSAGE VAL {message_val}")
 
             yield json.dumps(
                 {
