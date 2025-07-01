@@ -19,17 +19,6 @@ resource = Resource.create(
     }
 )
 
-
-trace.set_tracer_provider(TracerProvider(resource=resource))
-tracer = trace.get_tracer(__name__)
-
-# otlp_trace_exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
-
-
-# Add span processor
-# span_processor = BatchSpanProcessor(otlp_trace_exporter)
-# trace.get_tracer_provider().add_span_processor(span_processor)
-
 # Set up logging
 logger_provider = LoggerProvider(resource=resource)
 

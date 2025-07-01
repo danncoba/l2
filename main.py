@@ -13,6 +13,7 @@ from routers.users import users_router
 
 from logger import logger
 from telemetry import setup_telemetry, instrument_fastapi
+from utils.tracing import TraceIdMiddleware
 
 # Setup OpenTelemetry tracing
 setup_telemetry()
@@ -39,6 +40,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(TraceIdMiddleware)
 
 app.include_router(profile_router)
 app.include_router(users_router)

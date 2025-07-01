@@ -1,5 +1,6 @@
 import os
 from opentelemetry import trace
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -30,8 +31,15 @@ def setup_telemetry():
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
     otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
 
+    # Configure Jaeger exporter
+    jaeger_exporter = JaegerExporter(
+        agent_host_name="localhost",  # or your Jaeger agent host
+        agent_port=6831,  # default Jaeger agent port
+        collector_endpoint="http://localhost:14268/api/traces",  # alternative: collector endpoint
+    )
+
     # Add BatchSpanProcessor to the TracerProvider
-    tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+    tracer_provider.add_span_processor(BatchSpanProcessor(jaeger_exporter))
 
     # Set the TracerProvider as the global default
     trace.set_tracer_provider(tracer_provider)
