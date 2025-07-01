@@ -12,7 +12,9 @@ class TraceIdMiddleware(BaseHTTPMiddleware):
         # Extract the trace ID if the span context is valid
         trace_id = None
         if span_context.is_valid:
-            trace_id = hex(span_context.trace_id)[2:]  # Convert to hex string and remove '0x' prefix
+            trace_id = hex(span_context.trace_id)[
+                2:
+            ]  # Convert to hex string and remove '0x' prefix
 
         # Process the request and get the response
         response = await call_next(request)

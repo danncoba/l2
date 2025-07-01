@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agents.llm_callback import CustomLlmTrackerCallback
 from db.models import User, Skill, Grade
 from dto.response.matrix_chats import MessageDict
 from service.service import BaseService
@@ -14,7 +15,6 @@ load_dotenv()
 
 
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
-# print("LLM API KEY: ", LITE_LLM_API_KEY)
 LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
 
@@ -25,6 +25,7 @@ model = ChatOpenAI(
     model=LITE_MODEL,
     streaming=True,
     verbose=True,
+    callbacks=[CustomLlmTrackerCallback("welcome")],
 )
 # model = ChatOpenAI(model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, max_tokens=500)
 

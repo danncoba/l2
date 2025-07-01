@@ -20,6 +20,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from agents.guidance import build_graph, provide_guidance, GuidanceHelperStdOutput
+from agents.llm_callback import CustomLlmTrackerCallback
 from db.db import get_session
 from dto.response.grades import GradeResponseBase
 from dto.response.matrix_chats import MessageDict
@@ -38,6 +39,7 @@ model = ChatOpenAI(
     base_url=LITE_LLM_URL,
     streaming=True,
     verbose=True,
+    callbacks=[CustomLlmTrackerCallback("reasoner")],
 )
 
 

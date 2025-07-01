@@ -55,15 +55,16 @@ async def test_reasoner_run():
             messages_to_send = convert_msg_dict_to_langgraph_format(eval_set)
             async for chunk in reasoner_run(uuid.uuid4(), messages_to_send, grades):
                 json_chunk = json.loads(chunk)
-                prompt_template = ChatPromptTemplate.from_messages(messages=[
-                    SystemMessage(
-                        """
+                prompt_template = ChatPromptTemplate.from_messages(
+                    messages=[
+                        SystemMessage(
+                            """
                         Do assistant and user message have large similarities between them on the topic and context of the discussion?
                         Respond with exactly "true" (if similar) or exactly "false" (if not similar) only!
                         """
-                    ),
-                    AIMessage(json_chunk["message"]),
-                    HumanMessage(validation.message)
+                        ),
+                        AIMessage(json_chunk["message"]),
+                        HumanMessage(validation.message),
                     ]
                 )
                 prompt = prompt_template.invoke({})

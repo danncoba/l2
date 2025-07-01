@@ -2,6 +2,7 @@ from langchain import hub
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import StructuredTool
 
+from agents.llm_callback import CustomLlmTrackerCallback
 from db.db import get_session
 from db.models import Grade
 from dto.response.matrix_chats import MessageDict
@@ -26,6 +27,8 @@ LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
 
+custom_callback = CustomLlmTrackerCallback("guidance")
+
 model = ChatOpenAI(
     temperature=0,
     model=LITE_MODEL,
@@ -33,6 +36,7 @@ model = ChatOpenAI(
     base_url=LITE_LLM_URL,
     streaming=True,
     verbose=True,
+    callbacks=[custom_callback],
 )
 
 
