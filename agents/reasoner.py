@@ -204,7 +204,9 @@ builder = StateGraph(ReasonerState)
 
 async def answer_classifier(state: ReasonerState) -> ReasonerState:
     response: GuidanceHelperStdOutput = None
-    async for chunk in provide_guidance(state["messages"], state["user"], state["skill"]):
+    async for chunk in provide_guidance(
+        state["messages"], state["user"], state["skill"]
+    ):
         print("ANSWER CLASSIFIER", chunk)
         if isinstance(chunk, GuidanceHelperStdOutput):
             response = chunk

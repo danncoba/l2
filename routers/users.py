@@ -94,6 +94,17 @@ async def choose_user(
     return FullUserResponseBase(**user.model_dump())
 
 
+@users_router.post("/upload", response_model=FullUserResponseBase)
+async def upload_file(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    credentials: Annotated[HTTPBasicCredentials, Depends(security)],
+) -> FullUserResponseBase:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return FullUserResponseBase(**user.model_dump())
+
+
 @users_router.get("/test/test", response_model=Any)
 async def test_get_users(
     session: Annotated[AsyncSession, Depends(get_session)],

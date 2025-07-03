@@ -15,6 +15,10 @@ tracer = trace.get_tracer(__name__)
 
 class CustomLlmTrackerCallback(BaseCallbackHandler):
 
+    def __init__(self, name):
+        super().__init__()
+        self._name = name
+
     def on_llm_new_token(
         self,
         token: str,
@@ -238,13 +242,13 @@ class CustomLlmTrackerCallback(BaseCallbackHandler):
         **kwargs: Any,
     ) -> Any:
         with tracer.start_as_current_span("on_llm_start") as span:
-            span.set_attribute("llm.on_llm_start.run_id", run_id)
-            span.set_attribute("llm.on_llm_start.parent_run_id", parent_run_id)
-            span.set_attribute("llm.on_llm_start.kwargs", kwargs)
-            span.set_attribute("llm.on_llm_start.outputs", serialized)
-            span.set_attribute("llm.on_llm_start.prompts", prompts)
-            span.set_attribute("llm.on_llm_start.tags", tags)
-            span.set_attribute("llm.on_llm_start.metadata", metadata)
+            span.set_attribute("llm.on_llm_start.run_id", str(run_id))
+            span.set_attribute("llm.on_llm_start.parent_run_id", str(parent_run_id))
+            span.set_attribute("llm.on_llm_start.kwargs", str(kwargs))
+            span.set_attribute("llm.on_llm_start.outputs", str(serialized))
+            span.set_attribute("llm.on_llm_start.prompts", str(prompts))
+            span.set_attribute("llm.on_llm_start.tags", str(tags))
+            span.set_attribute("llm.on_llm_start.metadata", str(metadata))
         return super().on_llm_start(
             serialized,
             prompts,
@@ -386,63 +390,3 @@ class CustomLlmTrackerCallback(BaseCallbackHandler):
         return super().on_custom_event(
             name, data, run_id=run_id, tags=tags, metadata=metadata, **kwargs
         )
-
-    @property
-    def __class__(self):
-        return super().__class__
-
-    def __init__(self, name):
-        super().__init__()
-        self._name = name
-
-    def __new__(cls, name):
-        return super().__new__(cls)
-
-    def __setattr__(self, __name, __value):
-        super().__setattr__(__name, __value)
-
-    def __delattr__(self, __name):
-        super().__delattr__(__name)
-
-    def __eq__(self, __value):
-        return super().__eq__(__value)
-
-    def __ne__(self, __value):
-        return super().__ne__(__value)
-
-    def __str__(self):
-        return super().__str__()
-
-    def __repr__(self):
-        return super().__repr__()
-
-    def __hash__(self):
-        return super().__hash__()
-
-    def __format__(self, __format_spec):
-        return super().__format__(__format_spec)
-
-    def __getattribute__(self, __name):
-        return super().__getattribute__(__name)
-
-    def __sizeof__(self):
-        return super().__sizeof__()
-
-    def __reduce__(self):
-        return super().__reduce__()
-
-    def __reduce_ex__(self, __protocol):
-        return super().__reduce_ex__(__protocol)
-
-    def __getstate__(self):
-        return super().__getstate__()
-
-    def __dir__(self):
-        return super().__dir__()
-
-    def __init_subclass__(cls):
-        super().__init_subclass__()
-
-    @classmethod
-    def __subclasshook__(cls, __subclass):
-        return super().__subclasshook__(__subclass)

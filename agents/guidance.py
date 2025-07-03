@@ -15,6 +15,7 @@ from agents.llm_callback import CustomLlmTrackerCallback
 from db.db import get_session
 from db.models import Grade, UserSkills, User, Skill
 from service.service import BaseService
+from tools.tools import get_grades_or_expertise
 
 load_dotenv()
 
@@ -50,21 +51,6 @@ class GuidanceHelperStdOutput(BaseModel):
         description="Whether the admin should be involved if user is evading the topic or fooling around"
     )
     message: str = Field(description="Message to send to the user")
-
-
-async def get_grades_or_expertise() -> List[Grade]:
-    """
-    Useful tool to retrieve current grades or expertise level grading system
-    :return: List of json representing those grades and all their fields
-    """
-    async for session in get_session():
-        service: BaseService[Grade, int, Any, Any] = BaseService(Grade, session)
-        all_db_grades = await service.list_all()
-        all_grades_json: List[str] = []
-        for grade in all_db_grades:
-            json_grade = grade.model_dump_json()
-            all_grades_json.append(json_grade)
-        return all_grades_json
 
 
 async def get_current_grade_for_user(
@@ -120,20 +106,20 @@ async def provide_guidance(
         }
     ):
         print("PROVIDE FEEDBACK", chunk)
-        if "agent" in chunk:
-            if "messages" in chunk["agent"]:
-                msg_content = chunk["agent"]["messages"][-1]
-                if isinstance(msg_content, AIMessage) and msg_content.content != "":
-                    content = msg_content.content
-                    content = content.replace("```json", "").replace("```", "")
-                    try:
-                        ch = GuidanceHelperStdOutput.model_validate_json(content)
-                        yield ch
-                    except ValidationError:
-                        yield GuidanceHelperStdOutput(
-                            has_user_answered=False,
-                            expertise_level="",
-                            expertise_id=0,
-                            should_admin_be_involved=False,
-                            message=content,
-                        )
+        content_present = "agent" in chunk and "messages" in chunk["agent"]
+        if content_present:
+            msg_content = chunk["agent"]["messages"][-1]
+            if isinstance(msg_content, AIMessage) and msg_content.content != "":
+                content = msg_content.content
+                content = content.replace("```json", "").replace("```", "")
+                try:
+                    ch = GuidanceHelperStdOutput.model_validate_json(content)
+                    yield ch
+                except ValidationError:
+                    yield GuidanceHelperStdOutput(
+                        has_user_answered=False,
+                        expertise_level="",
+                        expertise_id=0,
+                        should_admin_be_involved=False,
+                        message=content,
+                    )
