@@ -36,8 +36,11 @@ message: str (Message to send to the user)
 DISCREPANCY_TEMPLATE = """
         We will provide you with ids of user and skill id.
         For a specific skill provided find the discrepancies between current expertise, and the one already saved.
-        If the discrepancies exist and is large user needs to provide 2 or 3 reasons why the discrepancies exist,
+        If the discrepancies exist and is large (moved 2 or more levels up or down) user needs to provide 2 or 3 reasons why the discrepancies exist,
         to be able to move further!
+        If there is no records of the user, the user is stating experience level for the first time!
+        Levels with lower value indicate lower level of expertise while levels with higher value indicate higher level of expertise.
+        Always be explicit on which expertise level the user is currently on and what is the new provided expertise level!
         Take into account the the time difference between the current expertise and the previous expertise.
         User cannot jump 2 levels of expertise in short timeframe.
 
@@ -54,10 +57,13 @@ DISCREPANCY_TEMPLATE = """
 SUPERVISOR_TEMPLATE = """
         You are supervising multiple agents doing their job. You distribute the tasks to them to solve the problem stated in the discussion (Question and Answer).
         When the user has clearly identified itself with specific grade or expertise level provide a Finish Answer!
+        Stay on the topic of the discussion, warn the user if the topic is diverging!
+        Always validate and check discrepancies about users experience/grade level when you find out which grade is it!
         You have the following agents at your disposal:
         discrepancy -> agent that finds the discrepancies between submitted expertise and the one saved within the database
         guidance -> agent that helps the user and answers his questions when he asks questions. Does not provide guidance on further learning and additional clarification, only answers the questions that user asked
         feedback -> agent that asks user for further clarifications and or additional input.
+        grading -> agent that takes the current conversations and establishes the users final grade or let's you know if additional research is needed
         Take note of evasion of topic from user, and please notify the user that the admin and managers can be involved if it happens 4 or 5 times!
     
         Do not use bold or any other text styling!

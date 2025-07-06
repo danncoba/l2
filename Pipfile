@@ -33,6 +33,8 @@ asyncpg = "*"
 openai-agents = "*"
 opentelemetry-exporter-jaeger = "*"
 deprecated = "*"
+traceloop-sdk = "*"
+pgvector = "*"
 
 [dev-packages]
 pip = "*"

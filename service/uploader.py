@@ -68,5 +68,3 @@ class UploaderFactory:
             return MinioUploader()
         else:
             return EmptyUploader()
-
-

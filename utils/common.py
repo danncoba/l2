@@ -1,7 +1,8 @@
 from typing import List
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, BaseMessage
 
+from agents.dto import AgentMessage, ChatMessage
 from dto.response.matrix_chats import MessageDict
 
 
@@ -21,4 +22,25 @@ def convert_msg_dict_to_langgraph_format(
         elif msg.msg_type == "system":
             langchain_msgs.append(SystemMessage(msg.message))
 
+    return langchain_msgs
+
+
+def convert_agent_msg_to_llm_message(agent_msgs: List[AgentMessage]) -> List[str]:
+    langchain_msgs: List[str] = []
+    for agent_msg in agent_msgs:
+        langchain_msgs.append(agent_msg.message)
+    return langchain_msgs
+
+
+def convert_chat_messages_to_llm_message(
+    chat_msgs: List[ChatMessage],
+) -> List[BaseMessage]:
+    langchain_msgs: List[BaseMessage] = []
+    for chat_msg in chat_msgs:
+        if chat_msg.role == "user":
+            langchain_msgs.append(HumanMessage(chat_msg.content))
+        elif chat_msg.role == "assistant":
+            langchain_msgs.append(AIMessage(chat_msg.content))
+        elif chat_msg.role == "system":
+            langchain_msgs.append(SystemMessage(chat_msg.content))
     return langchain_msgs

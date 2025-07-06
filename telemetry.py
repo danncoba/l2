@@ -11,6 +11,11 @@ from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
 
+# from traceloop.sdk import Traceloop
+
+
+# Traceloop.init()
+
 
 def setup_telemetry():
     """Setup OpenTelemetry tracing and instrumentation"""
