@@ -1,7 +1,10 @@
 import os
+
+import litellm
 from typing import Any, List
 
 from dotenv import load_dotenv
+from litellm import batch_completion
 from langchain_core.prompt_values import PromptValue
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -86,15 +89,11 @@ async def welcome_agent_batch(
         await prepare_welcome_prompt(req.user_id, req.skill_id, session)
         for req in all_requests
     ]
-    model = ChatOpenAI(
-        temperature=0,
-        base_url=LITE_LLM_URL,
-        api_key=LITE_LLM_API_KEY,
+    responses = batch_completion(
         model=LITE_MODEL,
-        max_tokens=500,
-        streaming=True,
-        verbose=True,
-        callbacks=[CustomLlmTrackerCallback("welcome")],
+        temperature=0,
+        api_key=LITE_LLM_API_KEY,
+        base_url=LITE_LLM_URL,
+        messages=req_batch
     )
-    responses = await model.abatch(req_batch)
     return responses

@@ -2,23 +2,22 @@ import asyncio
 import uuid
 import time
 
-from datetime import datetime, timedelta, date
+from datetime import timedelta, date
 from typing import Any, Tuple
 
 from celery import shared_task
 from sqlalchemy import text
-from sqlmodel import select
 
 from agents.welcome import SingleUserSkillData, welcome_agent_batch
 from db.db import get_session
-from db.models import User, MatrixChat, UserSkills, Notification, TestSupervisorMatrix
+from db.models import MatrixChat, Notification, TestSupervisorMatrix
 from dto.inner.matrix_chat import CreateMatrixChatBase
 from dto.inner.notifications import CreateNotificationRequestBase
 from dto.request.supervisor_matrix import CreateSupervisorMatrixRequest
 from service.service import BaseService
 
 
-async def get_start_and_end() -> Tuple[int, int]:
+def get_start_and_end() -> Tuple[int, int]:
     today = date.today()
     start = today - timedelta(days=today.weekday())
     end = start + timedelta(days=7)
@@ -29,7 +28,7 @@ async def get_start_and_end() -> Tuple[int, int]:
 
 
 async def get_required_users():
-    start, end = await get_start_and_end()
+    start, end = get_start_and_end()
     print(f"GET REQUIRED USERS START -> {start} END {end}")
     async for session in get_session():
         query = text(
