@@ -315,7 +315,7 @@ async def finish(state: SupervisorState) -> SupervisorState:
 
 
 async def next_step(
-        state: SupervisorState,
+    state: SupervisorState,
 ) -> Literal["guidance", "feedback", "discrepancy", "finish", "grading"]:
     if len(state["next_steps"]) > 0:
         if state["next_steps"][-1] == "guidance":

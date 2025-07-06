@@ -21,26 +21,32 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute('CREATE EXTENSION IF NOT EXISTS vector')
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.create_table(
-        'knowledge_base',
-        sa.Column('id', UUID(as_uuid=True), primary_key=True),
-        sa.Column('content', sa.Text(), nullable=False),
-        sa.Column('source', sa.String(255), nullable=False),
-        sa.Column('area', sa.String(255), nullable=True),
-        sa.Column('embedding', Vector(1536), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        "knowledge_base",
+        sa.Column("id", UUID(as_uuid=True), primary_key=True),
+        sa.Column("content", sa.Text(), nullable=False),
+        sa.Column("source", sa.String(255), nullable=False),
+        sa.Column("area", sa.String(255), nullable=True),
+        sa.Column("embedding", Vector(1536), nullable=True),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
     )
 
     # Create index for vector similarity search
-    op.execute("""
+    op.execute(
+        """
                CREATE INDEX IF NOT EXISTS idx_embeddings_cosine
                    ON knowledge_base USING ivfflat (embedding vector_cosine_ops)
                    WITH (lists = 100)
-               """)
+               """
+    )
 
 
 def downgrade() -> None:
-    op.drop_table('knowledge_base')
-    op.execute('DROP EXTENSION IF EXISTS vector')
+    op.drop_table("knowledge_base")
+    op.execute("DROP EXTENSION IF EXISTS vector")

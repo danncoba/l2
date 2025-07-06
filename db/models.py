@@ -3,6 +3,7 @@ from uuid import UUID as UUID4
 from datetime import datetime
 from typing import Optional, List
 
+from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import String, Boolean, BigInteger, Integer, Text, DateTime, UUID, JSON
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import SQLModel, Field, Column, Relationship, ForeignKey
@@ -35,6 +36,9 @@ class User(AsyncAttrs, SQLModel, table=True):
     skills: List["UserSkills"] = Relationship(back_populates="user")
     notifications: List["Notification"] = Relationship(back_populates="user")
     matrix_chats: List["MatrixChat"] = Relationship(back_populates="user")
+    supervisor_matrix: List["TestSupervisorMatrix"] = Relationship(
+        back_populates="user"
+    )
 
 
 class Grade(SQLModel, table=True):
@@ -84,6 +88,9 @@ class Skill(AsyncAttrs, SQLModel, table=True):
     children: List["Skill"] = Relationship(back_populates="parent")
     users: List["UserSkills"] = Relationship(back_populates="skill")
     matrix_chats: List["MatrixChat"] = Relationship(back_populates="skill")
+    supervisor_matrix: List["TestSupervisorMatrix"] = Relationship(
+        back_populates="skill"
+    )
 
 
 class UserSkills(AsyncAttrs, SQLModel, table=True):
@@ -215,3 +222,48 @@ class Config(SQLModel, table=True):
     matrix_starting_at: int = Field(sa_column=Column(BigInteger, nullable=False))
     matrix_reminders: bool = Field(sa_column=Column(Boolean, nullable=False))
     reminders_format: str = Field(sa_column=Column(Text, nullable=True))
+
+
+class KnowledgeBase(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "knowledge_base"
+    id: int = Field(sa_column=Column(UUID, primary_key=True, nullable=False))
+    content: str = Field(sa_column=Column(Text, nullable=False))
+    source: str = Field(sa_column=Column(String(255), nullable=False))
+    area: str = Field(sa_column=Column(String(255), nullable=True))
+    embedding: List[float] = Field(sa_column=Column(VECTOR, nullable=False))
+    created_at: datetime = Field(sa_column=Column(DateTime(), nullable=True))
+    updated_at: datetime = Field(sa_column=Column(DateTime(), nullable=True))
+
+
+class TestSupervisorMatrix(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "test_supervisor_matrix"
+    id: uuid.UUID = Field(sa_column=Column(UUID, primary_key=True, autoincrement=False))
+    skill_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("skills.id"), nullable=False)
+    )
+    user_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    user: User = Relationship(back_populates="supervisor_matrix")
+    skill: Skill = Relationship(back_populates="supervisor_matrix")
+    welcome_msg: List["TestSupervisorWelcome"] = Relationship(
+        back_populates="supervisor_matrix"
+    )
+
+
+class TestSupervisorWelcome(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "test_supervisor_welcome_msg"
+    id: uuid.UUID = Field(sa_column=Column(UUID, primary_key=True, autoincrement=False))
+    supervisor_matrix_id: int = Field(
+        sa_column=Column(
+            UUID, ForeignKey("test_supervisor_matrix.id"), autoincrement=False
+        )
+    )
+    message: str = Field(sa_column=Column(Text, nullable=False))
+    supervisor_matrix: TestSupervisorMatrix = Relationship(back_populates="welcome_msg")

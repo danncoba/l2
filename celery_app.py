@@ -19,6 +19,11 @@ app.conf.update(
                 {"phone_number": "1234567890", "message": "Scheduled SMS notification"},
             ),
         },
+        "send-test-supervisor-matrix-validations-every-minute": {
+            "task": "tasks.create_matrix_validations_test",
+            "schedule": crontab(minute="*"),  # Alternative: using crontab every minute
+            "args": (),
+        },
     },
 )
 

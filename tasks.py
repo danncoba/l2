@@ -9,11 +9,12 @@ from celery import shared_task
 from sqlalchemy import text
 from sqlmodel import select
 
+from agents.welcome import SingleUserSkillData, welcome_agent_batch
 from db.db import get_session
-from db.models import User, MatrixChat, UserSkills, Notification
+from db.models import User, MatrixChat, UserSkills, Notification, TestSupervisorMatrix
 from dto.inner.matrix_chat import CreateMatrixChatBase
 from dto.inner.notifications import CreateNotificationRequestBase
-from service.filters import FilterModel, FilterType
+from dto.request.supervisor_matrix import CreateSupervisorMatrixRequest
 from service.service import BaseService
 
 
@@ -82,6 +83,53 @@ async def get_required_users():
         return all_results
 
 
+async def create_test_validations():
+    async for session in get_session():
+        query = text(
+            """
+            SELECT user_id, skill_id
+            FROM users_skills
+            EXCEPT
+            SELECT user_id, skill_id
+            FROM test_supervisor_matrix;
+            """
+        )
+
+        results = await session.execute(
+            query,
+        )
+        print("TEST VALIDATIONS TOTAL RESULTS ->", results.rowcount)
+        all_to_create = []
+        ai_batch_data = []
+        for result in results:
+            chat = CreateSupervisorMatrixRequest(
+                id=str(uuid.uuid4()),
+                user_id=result[0],
+                skill_id=result[1],
+            )
+            single_user_ai = SingleUserSkillData(
+                user_id=result[0],
+                skill_id=result[1],
+            )
+            all_to_create.append(chat)
+            ai_batch_data.append(single_user_ai)
+        service: BaseService[
+            TestSupervisorMatrix, uuid.UUID, CreateSupervisorMatrixRequest, Any
+        ] = BaseService(TestSupervisorMatrix, session)
+        results = await service.create_many(all_to_create)
+        ai_responses = await welcome_agent_batch(ai_batch_data, session)
+        print("AI RESPONSES -> ")
+        for response in ai_responses:
+            print("AI RESPONSE -> ", response)
+        print(f"TEST VALIDATIONS CREATED MANY {results}")
+        return results
+
+
 @shared_task
 def create_matrix_validations(starting_from: int, ending_at: int):
     asyncio.run(get_required_users())
+
+
+@shared_task
+def create_matrix_validations_test():
+    asyncio.run(create_test_validations())

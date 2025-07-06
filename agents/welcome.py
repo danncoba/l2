@@ -1,9 +1,11 @@
 import os
-from typing import Any
+from typing import Any, List
 
 from dotenv import load_dotenv
+from langchain_core.prompt_values import PromptValue
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.llm_callback import CustomLlmTrackerCallback
@@ -13,24 +15,19 @@ from service.service import BaseService
 
 load_dotenv()
 
-
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
 
-model = ChatOpenAI(
-    temperature=0,
-    base_url=LITE_LLM_URL,
-    api_key=LITE_LLM_API_KEY,
-    model=LITE_MODEL,
-    streaming=True,
-    verbose=True,
-    callbacks=[CustomLlmTrackerCallback("welcome")],
-)
-# model = ChatOpenAI(model="gpt-4o", api_key=LITE_LLM_API_KEY, streaming=True, max_tokens=500)
+
+class SingleUserSkillData(BaseModel):
+    user_id: int
+    skill_id: int
 
 
-async def welcome_agent(user_id: int, skill_id: int, session: AsyncSession):
+async def prepare_welcome_prompt(
+    user_id: int, skill_id: int, session: AsyncSession
+) -> PromptValue:
     user_service: BaseService[User, int, Any, Any] = BaseService(User, session)
     skill_service: BaseService[Skill, int, Any, Any] = BaseService(Skill, session)
     grade_service: BaseService[Grade, int, Any, Any] = BaseService(Grade, session)
@@ -48,7 +45,7 @@ async def welcome_agent(user_id: int, skill_id: int, session: AsyncSession):
         {grades}
         User data in json format:
         {user_json}
-        Skill skill in json format:
+        Skill data in json format:
         {skill_json}
         Begin!
         """
@@ -60,8 +57,44 @@ async def welcome_agent(user_id: int, skill_id: int, session: AsyncSession):
             "skill_json": skill.model_dump(),
         },
     )
+    return prompt
+
+
+async def welcome_agent(user_id: int, skill_id: int, session: AsyncSession):
+    prompt = await prepare_welcome_prompt(user_id, skill_id, session)
+    model = ChatOpenAI(
+        temperature=0,
+        base_url=LITE_LLM_URL,
+        api_key=LITE_LLM_API_KEY,
+        model=LITE_MODEL,
+        max_tokens=500,
+        streaming=True,
+        verbose=True,
+        callbacks=[CustomLlmTrackerCallback("welcome")],
+    )
     async for chunk in model.astream(prompt):
         message_chunk = MessageDict(
             msg_type="ai", message=chunk.content
         ).model_dump_json()
         yield message_chunk
+
+
+async def welcome_agent_batch(
+    all_requests: List[SingleUserSkillData], session: AsyncSession
+) -> List[Any]:
+    req_batch = [
+        await prepare_welcome_prompt(req.user_id, req.skill_id, session)
+        for req in all_requests
+    ]
+    model = ChatOpenAI(
+        temperature=0,
+        base_url=LITE_LLM_URL,
+        api_key=LITE_LLM_API_KEY,
+        model=LITE_MODEL,
+        max_tokens=500,
+        streaming=True,
+        verbose=True,
+        callbacks=[CustomLlmTrackerCallback("welcome")],
+    )
+    responses = await model.abatch(req_batch)
+    return responses
