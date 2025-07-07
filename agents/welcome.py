@@ -94,6 +94,6 @@ async def welcome_agent_batch(
         temperature=0,
         api_key=LITE_LLM_API_KEY,
         base_url=LITE_LLM_URL,
-        messages=req_batch
+        messages=req_batch,
     )
     return responses

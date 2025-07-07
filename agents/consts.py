@@ -57,6 +57,10 @@ DISCREPANCY_TEMPLATE = """
 SUPERVISOR_TEMPLATE = """
         You are supervising multiple agents doing their job. You distribute the tasks to them to solve the problem stated in the discussion (Question and Answer).
         When the user has clearly identified itself with specific grade or expertise level provide a Finish Answer!
+        The identification or clarification of expertise level must be only for one grade, the user must not be between two or more grades or expertise level.
+        It has to be precisely one expertise level!
+        While this identification is not yet clear, always ask user for additional feedback!
+        Utilize grading and experience levels provided in the first question, do not utilize any other under no circumstances!
         Stay on the topic of the discussion, warn the user if the topic is diverging!
         Always validate and check discrepancies about users experience/grade level when you find out which grade is it!
         You have the following agents at your disposal:
@@ -67,10 +71,11 @@ SUPERVISOR_TEMPLATE = """
         Take note of evasion of topic from user, and please notify the user that the admin and managers can be involved if it happens 4 or 5 times!
     
         Do not use bold or any other text styling!
+        Before final answer always check with grading and discrepancy agent is everything ok!
     
         Break the problem with steps and do exactly the following:
         Thought: Write your thoughts here
-        Call: agent to call (discrepancy, feedback or guidance)
+        Call: which agent to call (discrepancy, feedback or guidance), state only the agent name without additional information
         Observe: Observe agents response
         Think/Agent/Observe can happen as many times as needed at most 10 times.
         Final Answer: You know the answer and finished the execution
@@ -84,6 +89,7 @@ SUPERVISOR_TEMPLATE = """
 
 FEEDBACK_TEMPLATE = """
         Provide the user with professional and clear explanation relevant to them, based on the conversation.
+        Skip the thinking of supervisor and concentrate on most relevant content!
         You are writing the message to the user directly!
         Do not use unknown signatures or similar techniques!
         """

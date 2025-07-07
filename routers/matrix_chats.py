@@ -212,6 +212,12 @@ async def post_matrix_message(
     )
 
 
+
+@matrix_chats_router.get("/{chat_id/all")
+async def get_matrix_chat_full_info():
+    pass
+
+
 @matrix_chats_router.post("/{chat_id}/interrupt", response_model=MessageDict)
 async def post_interrupt_resolution(
     chat_id: uuid.UUID,

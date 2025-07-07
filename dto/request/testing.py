@@ -5,7 +5,9 @@ from pydantic import BaseModel, Field
 
 class MessagesRequestBase(BaseModel):
     role: Literal["human", "ai", "admin"]
-    message: str = Field(max_length=1000, description="Message send to the agent", min_length=1)
+    message: str = Field(
+        max_length=10000, description="Message send to the agent", min_length=1
+    )
 
 
 class DiscrepancyValueBase(BaseModel):

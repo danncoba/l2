@@ -11,14 +11,14 @@ app.conf.update(
     result_accept_content=["json"],
     timezone="UTC",
     beat_schedule={
-        "send-matrix-validations-every-minute": {
-            "task": "tasks.create_matrix_validations",
-            "schedule": crontab(minute="*"),  # Alternative: using crontab every minute
-            "args": (
-                "sms",
-                {"phone_number": "1234567890", "message": "Scheduled SMS notification"},
-            ),
-        },
+        # "send-matrix-validations-every-minute": {
+        #     "task": "tasks.create_matrix_validations",
+        #     "schedule": crontab(minute="*"),  # Alternative: using crontab every minute
+        #     "args": (
+        #         "sms",
+        #         {"phone_number": "1234567890", "message": "Scheduled SMS notification"},
+        #     ),
+        # },
         "send-test-supervisor-matrix-validations-every-minute": {
             "task": "tasks.create_matrix_validations_test",
             "schedule": crontab(minute="*"),  # Alternative: using crontab every minute

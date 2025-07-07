@@ -116,6 +116,7 @@ async def create_test_validations():
             TestSupervisorMatrix, uuid.UUID, CreateSupervisorMatrixRequest, Any
         ] = BaseService(TestSupervisorMatrix, session)
         results = await service.create_many(all_to_create)
+        print("BEFORE LITELLM BATCH IS INVOLVED")
         ai_responses = await welcome_agent_batch(ai_batch_data, session)
         print("AI RESPONSES -> ")
         for response in ai_responses:
