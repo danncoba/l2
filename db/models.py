@@ -258,7 +258,7 @@ class TestSupervisorMatrix(AsyncAttrs, SQLModel, table=True):
 
 
 class TestSupervisorWelcome(AsyncAttrs, SQLModel, table=True):
-    __tablename__ = "test_supervisor_welcome_msg"
+    __tablename__ = "text_supervisor_welcome_msg"
     id: uuid.UUID = Field(sa_column=Column(UUID, primary_key=True, autoincrement=False))
     supervisor_matrix_id: int = Field(
         sa_column=Column(

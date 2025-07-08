@@ -1,25 +1,38 @@
 import json
 import uuid
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Dict, Any, Annotated, Optional, List
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage
+from fastapi.security import HTTPBasicCredentials
 from langgraph.types import Interrupt
 from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents.dto import ChatMessage
 from agents.supervisor import (
     get_graph,
     SupervisorState,
     DiscrepancyValues,
     GuidanceValue,
 )
+from agents.welcome import SingleUserSkillData, welcome_agent_batch
+from db.db import get_session
+from db.models import TestSupervisorMatrix, TestSupervisorWelcome, User
+from dto.request.supervisor_matrix import (
+    CreateSupervisorMatrixRequest,
+    CreateSupervisorWelcomeRequest,
+)
 from dto.request.testing import TestingRequestBase
-from security import admin_required
+from dto.response.matrix_chats import (
+    MatrixChatResponseBase,
+    MatrixChatResponseSmallBase,
+)
+from security import admin_required, security, get_current_user
+from service.service import BaseService
 
 testing_router = APIRouter(
-    prefix="/api/v1/testing", tags=["testing"], dependencies=[Depends(admin_required)]
+    prefix="/api/v1/testing", tags=["testing"]
 )
 
 
@@ -28,26 +41,163 @@ class TestModel(BaseModel):
     version: float
 
 
-@testing_router.post("", response_model=str)
-async def test_reasoner(created_dto: TestingRequestBase) -> StreamingResponse:
-    first_msg = {
-        "message": """
-        Expertise Levels in Amazon Web Services
-                    Welcome, Oliver! In this discussion, we will explore the various expertise levels available for Amazon Web Services (AWS). Understanding these levels will help you select the appropriate expertise that aligns with your current knowledge and goals.
-    
-                    Here are the expertise levels you can choose from:
-    
-                    Not Informed: You have no prior knowledge of AWS.
-                    Informed Basics: You have a basic understanding of AWS concepts.
-                    Informed in Details: You are knowledgeable about AWS and its services in detail.
-                    Practice and Lab Examples: You have hands-on experience with AWS through practical examples and labs.
-                    Production Maintenance: You are capable of maintaining AWS services in a production environment.
-                    Production from Scratch: You can set up and manage AWS services from the ground up.
-                    Educator/Expert: You possess extensive knowledge and can teach others about AWS.
-                    Consider your current skills and aspirations as you decide which level best represents your expertise in AWS. Let's dive into the details!
-        """,
-        "role": "ai",
+@testing_router.get("/chats", response_model=List[MatrixChatResponseSmallBase])
+async def get_testing_chats(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    credentials: Annotated[HTTPBasicCredentials, Depends(security)],
+    current_user: Optional[User] = Depends(get_current_user),
+) -> List[MatrixChatResponseBase]:
+    service: BaseService[TestSupervisorMatrix, uuid.UUID, Any, Any] = BaseService(
+        TestSupervisorMatrix, session
+    )
+    filters = {
+        "user_id": current_user.id,
     }
+    all_user_validations = await service.list_all(
+        filters=filters, order_by=[TestSupervisorMatrix.created_at.desc()]
+    )
+    all_matrices: List[MatrixChatResponseSmallBase] = []
+    for user_validation in all_user_validations:
+        user = await user_validation.awaitable_attrs.user
+        skill = await user_validation.awaitable_attrs.skill
+        welcome = await user_validation.awaitable_attrs.welcome_msg
+        welcome_msg_type = "ai"
+        welcome_msg = ""
+        if len(welcome) != 0:
+            welcome_msg_type = "ai"
+            welcome_msg = welcome[0].message
+
+        matrix = MatrixChatResponseSmallBase(
+            **user_validation.model_dump(),
+            user=user.model_dump(),
+            msg_type=welcome_msg_type,
+            message=welcome_msg,
+            skill=skill.model_dump(),
+        )
+        all_matrices.append(matrix)
+    return all_matrices
+
+
+@testing_router.get("/chats/{chat_id}", response_model=MatrixChatResponseSmallBase)
+async def get_testing_chat(
+        chat_id: uuid.UUID,
+        session: Annotated[AsyncSession, Depends(get_session)],
+        credentials: Annotated[HTTPBasicCredentials, Depends(security)],
+        current_user: Optional[User] = Depends(get_current_user),
+) -> MatrixChatResponseBase:
+    service: BaseService[TestSupervisorMatrix, uuid.UUID, Any, Any] = BaseService(
+        TestSupervisorMatrix, session
+    )
+    filters = {
+        "user_id": current_user.id,
+    }
+    test_matrice = await service.get(chat_id)
+    user = await test_matrice.awaitable_attrs.user
+    skill = await test_matrice.awaitable_attrs.skill
+    welcome = await test_matrice.awaitable_attrs.welcome_msg
+    welcome_msg_type = "ai"
+    welcome_msg = ""
+    if len(welcome) != 0:
+        welcome_msg_type = "ai"
+        welcome_msg = welcome[0].message
+
+    matrix = MatrixChatResponseSmallBase(
+        **test_matrice.model_dump(),
+        user=user.model_dump(),
+        msg_type=welcome_msg_type,
+        message=welcome_msg,
+        skill=skill.model_dump(),
+    )
+
+
+    return matrix
+
+
+@testing_router.post("/create")
+async def create_testing_models():
+    async for session in get_session():
+        query = text(
+            """
+            SELECT user_id, skill_id
+            FROM users_skills
+            EXCEPT
+            SELECT user_id, skill_id
+            FROM test_supervisor_matrix;
+            """
+        )
+
+        results = await session.execute(
+            query,
+        )
+        print("TEST VALIDATIONS TOTAL RESULTS ->", results.rowcount)
+        all_to_create = []
+        ai_batch_data = []
+        ai_batch_dict: Dict[int, uuid] = {}
+        for result in results:
+            chat = CreateSupervisorMatrixRequest(
+                id=str(uuid.uuid4()),
+                user_id=result[0],
+                skill_id=result[1],
+            )
+            single_user_ai = SingleUserSkillData(
+                user_id=result[0],
+                skill_id=result[1],
+            )
+            ai_batch_dict[len(all_to_create)] = chat.id
+            all_to_create.append(chat)
+            ai_batch_data.append(single_user_ai)
+        service: BaseService[
+            TestSupervisorMatrix, uuid.UUID, CreateSupervisorMatrixRequest, Any
+        ] = BaseService(TestSupervisorMatrix, session)
+        welcome_service: BaseService[
+            TestSupervisorWelcome, uuid.UUID, CreateSupervisorWelcomeRequest, Any
+        ] = BaseService(TestSupervisorWelcome, session)
+        print("BEFORE LITELLM BATCH IS INVOLVED")
+        welcome_msgs_batch = []
+        batch_response = await welcome_agent_batch(ai_batch_data, session)
+        for index, msg in enumerate(batch_response):
+            create_welcome_msg_req = CreateSupervisorWelcomeRequest(
+                id=str(uuid.uuid4()),
+                supervisor_matrix_id=ai_batch_dict[index],
+                message=msg.choices[0].message["content"],
+            )
+            welcome_msgs_batch.append(create_welcome_msg_req)
+        results = await service.create_many(all_to_create)
+        created_welcome_msgs = await welcome_service.create_many(welcome_msgs_batch)
+
+        return batch_response
+
+
+@testing_router.post("/chats/{chat_id}", response_model=str)
+async def reason_through(
+    chat_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    created_dto: TestingRequestBase,
+    current_user: Optional[User] = Depends(get_current_user),
+) -> StreamingResponse:
+    service: BaseService[TestSupervisorMatrix, uuid.UUID, Any, Any] = BaseService(
+        TestSupervisorMatrix, session
+    )
+    filters = {
+        "user_id": current_user.id,
+    }
+    test_matrice = await service.get(chat_id)
+    user = await test_matrice.awaitable_attrs.user
+    skill = await test_matrice.awaitable_attrs.skill
+    welcome = await test_matrice.awaitable_attrs.welcome_msg
+    welcome_msg_type = "ai"
+    welcome_msg = ""
+    if len(welcome) != 0:
+        welcome_msg_type = "ai"
+        welcome_msg = welcome[0].message
+
+    matrix = MatrixChatResponseSmallBase(
+        **test_matrice.model_dump(),
+        user=user.model_dump(),
+        msg_type=welcome_msg_type,
+        message=welcome_msg,
+        skill=skill.model_dump(),
+    )
     state = SupervisorState(
         discrepancy=DiscrepancyValues(
             skill_id=created_dto.discrepancy.skill_id,
@@ -57,7 +207,7 @@ async def test_reasoner(created_dto: TestingRequestBase) -> StreamingResponse:
         guidance=GuidanceValue(messages=[]),
         next_steps=[],
         messages=[],
-        chat_messages=[first_msg] + [m.model_dump() for m in created_dto.messages],
+        chat_messages=[m.model_dump() for m in created_dto.messages],
     )
     print(f"SENDING STATE {state}")
     return StreamingResponse(content=run_graph_stream(state), media_type="text/plain")

@@ -212,7 +212,6 @@ async def post_matrix_message(
     )
 
 
-
 @matrix_chats_router.get("/{chat_id/all")
 async def get_matrix_chat_full_info():
     pass

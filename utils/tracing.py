@@ -21,6 +21,6 @@ class TraceIdMiddleware(BaseHTTPMiddleware):
 
         # Add the trace ID to the response headers if available
         if trace_id:
-            response.headers["X-Trace-Id"] = trace_id
+            response.headers["Morpheus-Trace-Id"] = trace_id
 
         return response

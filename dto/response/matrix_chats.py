@@ -16,6 +16,16 @@ class MessageDict(BaseModel):
     should_admin_continue: bool = False
 
 
+class MatrixChatResponseSmallBase(BaseModel):
+    id: uuid.UUID
+    skill: SkillResponseSmall
+    user: UserResponseSmall
+    msg_type: str
+    message: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class MatrixChatResponseBase(BaseModel):
     id: uuid.UUID
     skill: SkillResponseSmall

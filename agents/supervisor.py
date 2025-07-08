@@ -156,7 +156,7 @@ async def supervisor_agent(state: SupervisorState) -> SupervisorState:
     print(f"\n\nSUPERVISOR AGENT RESPONSE\n {response}")
     content = response.content
     next_steps = []
-    match = re.search(r"\nCall: (discrepancy|guidance|feedback)", content)
+    match = re.search(r"\nCall: (discrepancy|guidance|feedback|grading)", content)
     msg_to_append = []
     print(f"SUPERVISOR CHAT MESSAGES -> {state['chat_messages']}")
     if match:

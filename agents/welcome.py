@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import litellm
 from typing import Any, List
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agents.llm_callback import CustomLlmTrackerCallback
 from db.models import User, Skill, Grade
 from dto.response.matrix_chats import MessageDict
+from logger import logger
 from service.service import BaseService
 
 load_dotenv()
@@ -21,6 +23,10 @@ load_dotenv()
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
+
+# litellm.api_base = LITE_LLM_URL
+# litellm.api_key = LITE_LLM_API_KEY
+# litellm.provider = "openai"
 
 
 class SingleUserSkillData(BaseModel):
@@ -30,7 +36,7 @@ class SingleUserSkillData(BaseModel):
 
 async def prepare_welcome_prompt(
     user_id: int, skill_id: int, session: AsyncSession
-) -> PromptValue:
+) -> List[dict]:
     user_service: BaseService[User, int, Any, Any] = BaseService(User, session)
     skill_service: BaseService[Skill, int, Any, Any] = BaseService(Skill, session)
     grade_service: BaseService[Grade, int, Any, Any] = BaseService(Grade, session)
@@ -60,7 +66,7 @@ async def prepare_welcome_prompt(
             "skill_json": skill.model_dump(),
         },
     )
-    return prompt
+    return [{"role": "user", "content": prompt.to_string()}]
 
 
 async def welcome_agent(user_id: int, skill_id: int, session: AsyncSession):
@@ -89,11 +95,23 @@ async def welcome_agent_batch(
         await prepare_welcome_prompt(req.user_id, req.skill_id, session)
         for req in all_requests
     ]
-    responses = batch_completion(
-        model=LITE_MODEL,
-        temperature=0,
-        api_key=LITE_LLM_API_KEY,
-        base_url=LITE_LLM_URL,
-        messages=req_batch,
-    )
-    return responses
+    logger.info(f"Batch size: {len(req_batch)}")
+    logger.info("Batch: before batch completion")
+    try:
+        responses = batch_completion(
+            model=f"azure/{LITE_MODEL}",
+            temperature=0,
+            max_tokens=400,
+            api_key=LITE_LLM_API_KEY,
+            api_base=LITE_LLM_URL,
+            messages=req_batch,
+        )
+        logger.info(f"Batch Response: {responses}")
+        return responses
+    except Exception as e:
+        logger.error(f"Batch completion error: {e}")
+        print(f"Exception type: {type(e)}")
+        print(f"Exception message: {str(e)}")
+        print(f"Full traceback:")
+        traceback.print_exc()
+        return []
