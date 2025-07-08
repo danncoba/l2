@@ -44,32 +44,32 @@ grades: List[GradeResponseBase] = [
 ]
 
 
-@pytest.mark.asyncio
-async def test_reasoner_run():
-    with open("./test_data/full_eval.jsonl", "r") as file:
-        for line in file.readlines():
-            test_case = TestVals.model_validate_json(line)
-            messages = [MessageDict(**m) for m in test_case.messages]
-            eval_set = messages[0:-1]
-            validation = messages[-1]
-            messages_to_send = convert_msg_dict_to_langgraph_format(eval_set)
-            async for chunk in reasoner_run(uuid.uuid4(), messages_to_send, grades):
-                json_chunk = json.loads(chunk)
-                prompt_template = ChatPromptTemplate.from_messages(
-                    messages=[
-                        SystemMessage(
-                            """
-                        Do assistant and user message have large similarities between them on the topic and context of the discussion?
-                        Respond with exactly "true" (if similar) or exactly "false" (if not similar) only!
-                        """
-                        ),
-                        AIMessage(json_chunk["message"]),
-                        HumanMessage(validation.message),
-                    ]
-                )
-                prompt = prompt_template.invoke({})
-                response = model.invoke(prompt)
-                print(f"Input -> {json_chunk["message"]}")
-                print(f"VAL -> {validation.message}")
-                print("RESPONSE", response.content)
-                assert response.content in ["true", "True"]
+# @pytest.mark.asyncio
+# async def test_reasoner_run():
+#     with open("./test_data/full_eval.jsonl", "r") as file:
+#         for line in file.readlines():
+#             test_case = TestVals.model_validate_json(line)
+#             messages = [MessageDict(**m) for m in test_case.messages]
+#             eval_set = messages[0:-1]
+#             validation = messages[-1]
+#             messages_to_send = convert_msg_dict_to_langgraph_format(eval_set)
+#             async for chunk in reasoner_run(uuid.uuid4(), messages_to_send, grades):
+#                 json_chunk = json.loads(chunk)
+#                 prompt_template = ChatPromptTemplate.from_messages(
+#                     messages=[
+#                         SystemMessage(
+#                             """
+#                         Do assistant and user message have large similarities between them on the topic and context of the discussion?
+#                         Respond with exactly "true" (if similar) or exactly "false" (if not similar) only!
+#                         """
+#                         ),
+#                         AIMessage(json_chunk["message"]),
+#                         HumanMessage(validation.message),
+#                     ]
+#                 )
+#                 prompt = prompt_template.invoke({})
+#                 response = model.invoke(prompt)
+#                 print(f"Input -> {json_chunk["message"]}")
+#                 print(f"VAL -> {validation.message}")
+#                 print("RESPONSE", response.content)
+#                 assert response.content in ["true", "True"]

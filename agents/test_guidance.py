@@ -25,6 +25,6 @@ class SimilarityResponse(BaseModel):
     are_similar: bool
 
 
-@pytest.mark.asyncio
-async def test_guidance_provider_with_file():
-    assert True
+# @pytest.mark.asyncio
+# async def test_guidance_provider_with_file():
+#     assert True

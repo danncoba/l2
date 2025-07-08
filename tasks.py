@@ -10,10 +10,18 @@ from sqlalchemy import text
 
 from agents.welcome import SingleUserSkillData, welcome_agent_batch
 from db.db import get_session
-from db.models import MatrixChat, Notification, TestSupervisorMatrix
+from db.models import (
+    MatrixChat,
+    Notification,
+    TestSupervisorMatrix,
+    TestSupervisorWelcome,
+)
 from dto.inner.matrix_chat import CreateMatrixChatBase
 from dto.inner.notifications import CreateNotificationRequestBase
-from dto.request.supervisor_matrix import CreateSupervisorMatrixRequest
+from dto.request.supervisor_matrix import (
+    CreateSupervisorMatrixRequest,
+    CreateSupervisorWelcomeRequest,
+)
 from service.service import BaseService
 
 
@@ -100,6 +108,7 @@ async def create_test_validations():
         print("TEST VALIDATIONS TOTAL RESULTS ->", results.rowcount)
         all_to_create = []
         ai_batch_data = []
+        ai_batch_dict: Dict[int, uuid] = {}
         for result in results:
             chat = CreateSupervisorMatrixRequest(
                 id=str(uuid.uuid4()),
@@ -110,19 +119,29 @@ async def create_test_validations():
                 user_id=result[0],
                 skill_id=result[1],
             )
+            ai_batch_dict[len(all_to_create)] = chat.id
             all_to_create.append(chat)
             ai_batch_data.append(single_user_ai)
         service: BaseService[
             TestSupervisorMatrix, uuid.UUID, CreateSupervisorMatrixRequest, Any
         ] = BaseService(TestSupervisorMatrix, session)
-        results = await service.create_many(all_to_create)
+        welcome_service: BaseService[
+            TestSupervisorWelcome, uuid.UUID, CreateSupervisorWelcomeRequest, Any
+        ] = BaseService(TestSupervisorWelcome, session)
         print("BEFORE LITELLM BATCH IS INVOLVED")
-        ai_responses = await welcome_agent_batch(ai_batch_data, session)
-        print("AI RESPONSES -> ")
-        for response in ai_responses:
-            print("AI RESPONSE -> ", response)
-        print(f"TEST VALIDATIONS CREATED MANY {results}")
-        return results
+        welcome_msgs_batch = []
+        batch_response = await welcome_agent_batch(ai_batch_data, session)
+        for index, msg in enumerate(batch_response):
+            create_welcome_msg_req = CreateSupervisorWelcomeRequest(
+                id=str(uuid.uuid4()),
+                supervisor_matrix_id=ai_batch_dict[index],
+                message=msg.choices[0].message["content"],
+            )
+            welcome_msgs_batch.append(create_welcome_msg_req)
+        results = await service.create_many(all_to_create)
+        created_welcome_msgs = await welcome_service.create_many(welcome_msgs_batch)
+
+        return batch_response
 
 
 @shared_task

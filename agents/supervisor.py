@@ -37,8 +37,6 @@ from utils.common import convert_agent_msg_to_llm_message
 
 load_dotenv()
 
-load_dotenv()
-
 search = TavilySearchResults()
 
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
