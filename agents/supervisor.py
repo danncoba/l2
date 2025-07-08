@@ -32,6 +32,7 @@ from agents.consts import (
 )
 from agents.llm_callback import CustomLlmTrackerCallback
 from agents.reasoner import get_checkpointer
+from logger import logger
 from tools.tools import find_current_grade_for_user_and_skill, get_grades_or_expertise
 from utils.common import convert_agent_msg_to_llm_message
 
@@ -43,6 +44,19 @@ LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
 
+
+TRACING_DISCREPANCY_AGENT = "discrepancy_agent"
+TRACING_GUIDANCE_AGENT = "guidance_agent"
+TRACING_SUPERVISOR_AGENT = "supervisor_agent"
+TRACING_FEEDBACK_AGENT = "feedback_agent"
+TRACING_GRADING_AGENT = "grading_agent"
+TRACING_EVADE_AGENT = "evasion_detector_agent"
+TRACING_START = "start"
+TRACING_END = "end"
+TRACING_FINISH = "finish"
+TRACING_NEXT_STEP = "next_step"
+
+
 custom_callback = CustomLlmTrackerCallback("guidance")
 
 
@@ -53,6 +67,15 @@ class DiscrepancyValues(BaseModel):
 
 
 class GuidanceValue(BaseModel):
+    """
+    Represents a value guided by a list of messages with specific annotations.
+
+    This class is utilized to encapsulate a collection of messages, allowing
+    additional modifications or processing based on their annotations.
+
+    :ivar messages: A list of messages annotated with `add_messages`.
+    :type messages: list
+    """
     messages: Annotated[list, add_messages]
 
 
@@ -66,11 +89,17 @@ class SupervisorState(TypedDict):
 
 async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
     """
-    Discrepancy agent that resolves the discrepancies and explains
-    the differences between the grades from saved and now provided stated
-    :return: None
+    Executes the discrepancy checking process for a user and skill and provides
+    corresponding guidance and messages based on discrepancies identified.
+
+    :param state: The current state of the process, which contains information
+        about the discrepancy, guidance, next steps, and chat messages.
+    :type state: SupervisorState
+    :return: The updated state containing the discrepancy information, guidance,
+        next steps, and any generated agent messages.
+    :rtype: SupervisorState
     """
-    discrepancy_callback = CustomLlmTrackerCallback("discrepancy_agent")
+    discrepancy_callback = CustomLlmTrackerCallback(TRACING_DISCREPANCY_AGENT)
     tools = [
         StructuredTool.from_function(
             function=find_current_grade_for_user_and_skill,
@@ -101,9 +130,11 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
         }
     )
     print(f"\n\nDISCREPANCY AGAIN PROMPT\n {prompt}")
+    logger.info(f"\n\nDISCREPANCY AGAIN PROMPT\n {prompt}")
     agent = create_react_agent(model=model, tools=tools)
     response = await agent.ainvoke(prompt)
     print(f"\n\nDISCREPANCY AGAIN RESPONSE\n {response}")
+    logger.info(f"\n\nDISCREPANCY AGAIN RESPONSE\n {response}")
     msg = []
     if "messages" in response and len(response["messages"]) > 0:
         response_msgs = response["messages"][-1]
@@ -123,6 +154,22 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
 
 
 async def supervisor_agent(state: SupervisorState) -> SupervisorState:
+    """
+    Executes the supervisor agent logic asynchronously, processing the current state
+    and generating an updated state that includes extracted next steps, messages, and
+    chat messages. The supervisor agent composes a discussion prompt, invokes a language
+    model for response generation, and determines the appropriate next steps based on the
+    content of the response.
+
+    :param state: The current state of the supervisor, containing all relevant
+        information such as chat messages, discrepancies, guidance, and
+        agent messages.
+    :type state: SupervisorState
+    :return: A dictionary representing the updated state of the supervisor. It includes
+        any detected discrepancies, new guidance, next steps determined for the agent,
+        messages processed by the supervisor, and any additional chat messages to append.
+    :rtype: SupervisorState
+    """
     prompt_template = ChatPromptTemplate.from_template(SUPERVISOR_TEMPLATE)
     msgs = []
     for msg in state["chat_messages"]:
@@ -185,6 +232,19 @@ async def supervisor_agent(state: SupervisorState) -> SupervisorState:
 
 
 async def grading_agent(state: SupervisorState) -> SupervisorState:
+    """
+    Processes the given user discussion data and evaluates the user's level
+    of expertise based on the provided inputs. Uses external AI models with
+    a predefined message template for accurate assessment and generates
+    a grade response indicating the expertise level.
+
+    :param state: SupervisorState containing the state details including
+        chat messages for the discussion, guidance, next steps, and discrepancy.
+    :type state: SupervisorState
+    :return: Updated SupervisorState object containing the earlier state
+        along with the grading message appended after expertise evaluation.
+    :rtype: SupervisorState
+    """
     system_msg = """
             Based on the provided discussion your job is to confirm the level of expertise of the user!
             If you are not sure that the grade or expertise is clearly recognizable please let the the user know
@@ -240,6 +300,21 @@ async def evasion_detector_agent(state: SupervisorState) -> SupervisorState:
 
 
 async def feedback_agent(state: SupervisorState) -> SupervisorState:
+    """
+    Asynchronously processes feedback for a given supervisor state using an AI chat
+    model and generates a response. This function utilizes an AI model to analyze
+    the provided supervisor state and generates feedback based on the state’s
+    attributes including its messages and discrepancy information. The resulting
+    feedback is returned alongside updated state information.
+
+    :param state: A SupervisorState object representing the current state of
+                  the supervisor, including messages and other details to guide
+                  the feedback process.
+    :type state: SupervisorState
+    :return: A SupervisorState object containing the updated state with feedback
+             responses and new messages integrated into the state.
+    :rtype: SupervisorState
+    """
     model = ChatOpenAI(
         temperature=0,
         max_tokens=300,
