@@ -31,9 +31,7 @@ from dto.response.matrix_chats import (
 from security import admin_required, security, get_current_user
 from service.service import BaseService
 
-testing_router = APIRouter(
-    prefix="/api/v1/testing", tags=["testing"]
-)
+testing_router = APIRouter(prefix="/api/v1/testing", tags=["testing"])
 
 
 class TestModel(BaseModel):
@@ -80,10 +78,10 @@ async def get_testing_chats(
 
 @testing_router.get("/chats/{chat_id}", response_model=MatrixChatResponseSmallBase)
 async def get_testing_chat(
-        chat_id: uuid.UUID,
-        session: Annotated[AsyncSession, Depends(get_session)],
-        credentials: Annotated[HTTPBasicCredentials, Depends(security)],
-        current_user: Optional[User] = Depends(get_current_user),
+    chat_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    credentials: Annotated[HTTPBasicCredentials, Depends(security)],
+    current_user: Optional[User] = Depends(get_current_user),
 ) -> MatrixChatResponseBase:
     service: BaseService[TestSupervisorMatrix, uuid.UUID, Any, Any] = BaseService(
         TestSupervisorMatrix, session
@@ -108,7 +106,6 @@ async def get_testing_chat(
         message=welcome_msg,
         skill=skill.model_dump(),
     )
-
 
     return matrix
 
