@@ -187,13 +187,25 @@ async def supervisor_agent(state: SupervisorState) -> SupervisorState:
 
 
 async def grading_agent(state: SupervisorState) -> SupervisorState:
-    system_msg = SystemMessage(
-        """
-        Based on the provided discussion your job is to confirm the level of expertise of the user!
-        If you are not sure that the grade or expertise is clearly recognizable please let the the user know
-        If you're certain please state explicitly which expertise is correct for the user!
-        """
-    )
+    system_msg = """
+            Based on the provided discussion your job is to confirm the level of expertise of the user!
+            If you are not sure that the grade or expertise is clearly recognizable please let the the user know
+            If you're certain state explicitly which expertise is correct for the user!
+
+            Discussion:
+            {discussion}
+            """
+    prompt_template = ChatPromptTemplate.from_template(system_msg)
+    msgs = []
+    for msg in state["chat_messages"]:
+        if msg["role"] == "human":
+            answer = f"Answer: {msg["message"]}"
+            msgs.append(answer)
+        elif msg["role"] == "ai":
+            question = f"Question: {msg["message"]}"
+            msgs.append(question)
+
+    prompt = await prompt_template.ainvoke(input={"discussion": "\n".join(msgs)})
     model = ChatOpenAI(
         temperature=0,
         max_tokens=50,
@@ -203,7 +215,7 @@ async def grading_agent(state: SupervisorState) -> SupervisorState:
         streaming=True,
         verbose=True,
     )
-    response = await model.ainvoke([system_msg] + state["chat_messages"])
+    response = await model.ainvoke(prompt)
     msg = AgentMessage(message=response, role="grade")
     return {
         "discrepancy": state["discrepancy"],

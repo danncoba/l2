@@ -59,7 +59,6 @@ SUPERVISOR_TEMPLATE = """
         When the user has clearly identified itself with specific grade or expertise level provide a Finish Answer!
         The identification or clarification of expertise level must be only for one grade, the user must not be between two or more grades or expertise level.
         It has to be precisely one expertise level!
-        While this identification is not yet clear, always ask user for additional feedback!
         Utilize grading and experience levels provided in the first question!
         Stay on the topic of the discussion, warn the user if the topic is diverging!
         Always validate and check discrepancies about users experience/grade level when you find out which grade is it!
