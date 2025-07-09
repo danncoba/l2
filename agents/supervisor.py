@@ -61,6 +61,21 @@ custom_callback = CustomLlmTrackerCallback("guidance")
 
 
 class DiscrepancyValues(BaseModel):
+    """
+    Represents discrepancy values with associated grade, skill, and user.
+
+    This class is used to define and manipulate the discrepancy values. It tracks
+    the grade, skill, and user identifiers, which can be utilized in data processing
+    or analysis involving discrepancies.
+
+    :ivar grade_id: Identifier for the grade.
+    :type grade_id: int
+    :ivar skill_id: Identifier for the skill.
+    :type skill_id: int
+    :ivar user_id: Identifier for the user.
+    :type user_id: int
+    """
+
     grade_id: int
     skill_id: int
     user_id: int
@@ -76,10 +91,38 @@ class GuidanceValue(BaseModel):
     :ivar messages: A list of messages annotated with `add_messages`.
     :type messages: list
     """
+
     messages: Annotated[list, add_messages]
 
 
 class SupervisorState(TypedDict):
+    """
+    Represents a state used by a supervisor system for managing and guiding agent
+    interactions.
+
+    This class is a typed dictionary designed to store and validate the various
+    components of the supervisor's state. The state includes details about
+    discrepancies, guidance information, next steps for agents, messages, and chat
+    messages. Each key corresponds to a specific component used in the supervision
+    process, ensuring data consistency and structure throughout the workflow.
+
+    :ivar discrepancy: Represents the discrepancies in the current state that might
+                       require attention or adjustment.
+    :type discrepancy: DiscrepancyValues
+    :ivar guidance: Specifies the guidance value that provides corrective or
+                    directive feedback within the system.
+    :type guidance: GuidanceValue
+    :ivar next_steps: A list of next steps (strings) annotated with specifications
+                      for operational behavior.
+    :type next_steps: Annotated[List[str], operator.add]
+    :ivar messages: A list of agent-specific messages annotated with specifications
+                    for operational behavior.
+    :type messages: Annotated[List[AgentMessage], operator.add]
+    :ivar chat_messages: A list of chat-specific messages annotated with
+                         specifications for operational behavior.
+    :type chat_messages: Annotated[List[ChatMessage], operator.add]
+    """
+
     discrepancy: DiscrepancyValues
     guidance: GuidanceValue
     next_steps: Annotated[List[str], operator.add]
@@ -359,6 +402,18 @@ async def feedback_agent(state: SupervisorState) -> SupervisorState:
 
 
 async def guidance_agent(state: SupervisorState) -> SupervisorState:
+    """
+    Executes the guidance agent workflow using provided state. This function builds a
+    compatible prompt, utilizes ChatOpenAI for processing, and generates an appropriate
+    response from the agent. The response is then structured and prepared for return.
+
+    :param state: Current state passed to the guidance agent. The state must implement
+                  the SupervisorState structure.
+    :type state: SupervisorState
+    :return: Updated state containing the guidance agent's reply and other relevant
+             elements, structured for further use.
+    :rtype: SupervisorState
+    """
     print("\n\n\nENTERING GUIDANCE\n\n\n")
     tools = [search]
     template = ChatPromptTemplate.from_template(GUIDANCE_TEMPLATE)

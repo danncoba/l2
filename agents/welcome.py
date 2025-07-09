@@ -47,8 +47,9 @@ async def prepare_welcome_prompt(
     prompt_template = ChatPromptTemplate.from_template(
         """
         You need to write a welcoming message to the user in a brief manner, explaining the purpose of the discussion.
-        The purpose of the discussion is user self evaluation of specific skill for which grades/expertise level
+        The purpose of the discussion is user self evaluation of specific skill for which grades/expertise level!
         should be selected from user perspective based on available expertise levels (grades).
+        Always write the expertise levels/grades available for self-evaluation!
         Emphasise the expertise we're discussing!Do not sign the message!Make the expertise part of heading!
         Here are the grades available in json format:
         {grades}
