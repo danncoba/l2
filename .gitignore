@@ -56,3 +56,4 @@ celerybeat-schedule-shm
 celerybeat-schedule-wal
 
 main.jsonl
+output.csv

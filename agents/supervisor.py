@@ -1,4 +1,5 @@
 import os
+import operator
 import re
 from contextlib import asynccontextmanager
 from typing import (
@@ -9,7 +10,6 @@ from typing import (
     Annotated,
     Literal,
 )
-import operator
 
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage
@@ -55,9 +55,13 @@ TRACING_START = "start"
 TRACING_END = "end"
 TRACING_FINISH = "finish"
 TRACING_NEXT_STEP = "next_step"
-
-
-custom_callback = CustomLlmTrackerCallback("guidance")
+SUPERVISOR_NODE = "supervisor"
+FEEDBACK_NODE = "feedback"
+GRADING_NODE = "grading"
+EVADE_NODE = "evasion_detector"
+DISCREPANCY_NODE = "discrepancy"
+GUIDANCE_NODE = "guidance"
+FINISH_NODE = "finish"
 
 
 class DiscrepancyValues(BaseModel):
@@ -347,7 +351,7 @@ async def feedback_agent(state: SupervisorState) -> SupervisorState:
     Asynchronously processes feedback for a given supervisor state using an AI chat
     model and generates a response. This function utilizes an AI model to analyze
     the provided supervisor state and generates feedback based on the state’s
-    attributes including its messages and discrepancy information. The resulting
+     attributes, including its messages and discrepancy information. The resulting
     feedback is returned alongside updated state information.
 
     :param state: A SupervisorState object representing the current state of
@@ -403,7 +407,7 @@ async def feedback_agent(state: SupervisorState) -> SupervisorState:
 
 async def guidance_agent(state: SupervisorState) -> SupervisorState:
     """
-    Executes the guidance agent workflow using provided state. This function builds a
+    Executes the guidance agent workflow using the provided state. This function builds a
     compatible prompt, utilizes ChatOpenAI for processing, and generates an appropriate
     response from the agent. The response is then structured and prepared for return.
 
@@ -458,15 +462,15 @@ async def next_step(
     state: SupervisorState,
 ) -> Literal["guidance", "feedback", "discrepancy", "finish", "grading"]:
     if len(state["next_steps"]) > 0:
-        if state["next_steps"][-1] == "guidance":
-            return "guidance"
-        elif state["next_steps"][-1] == "discrepancy":
-            return "discrepancy"
-        elif state["next_steps"][-1] == "feedback":
-            return "feedback"
-        elif state["next_steps"][-1] == "grading":
-            return "grading"
-    return "finish"
+        if state["next_steps"][-1] == GUIDANCE_NODE:
+            return GUIDANCE_NODE
+        elif state["next_steps"][-1] == DISCREPANCY_NODE:
+            return DISCREPANCY_NODE
+        elif state["next_steps"][-1] == FEEDBACK_NODE:
+            return FEEDBACK_NODE
+        elif state["next_steps"][-1] == GRADING_NODE:
+            return GRADING_NODE
+    return FINISH_NODE
 
 
 @asynccontextmanager
@@ -475,19 +479,19 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
         async with get_checkpointer() as saver:
             state_graph = StateGraph(SupervisorState)
 
-            state_graph.add_node("supervisor", supervisor_agent)
-            state_graph.add_node("discrepancy", discrepancy_agent)
-            state_graph.add_node("guidance", guidance_agent)
-            state_graph.add_node("feedback", feedback_agent)
-            state_graph.add_node("grading", grading_agent)
-            state_graph.add_node("finish", finish)
-            state_graph.add_edge(START, "supervisor")
-            state_graph.add_conditional_edges("supervisor", next_step)
-            state_graph.add_edge("discrepancy", "supervisor")
-            state_graph.add_edge("guidance", "supervisor")
-            state_graph.add_edge("feedback", "supervisor")
-            state_graph.add_edge("grading", "supervisor")
-            state_graph.add_edge("finish", END)
+            state_graph.add_node(SUPERVISOR_NODE, supervisor_agent)
+            state_graph.add_node(DISCREPANCY_NODE, discrepancy_agent)
+            state_graph.add_node(GUIDANCE_NODE, guidance_agent)
+            state_graph.add_node(FEEDBACK_NODE, feedback_agent)
+            state_graph.add_node(GRADING_NODE, grading_agent)
+            state_graph.add_node(FINISH_NODE, finish)
+            state_graph.add_edge(START, SUPERVISOR_NODE)
+            state_graph.add_conditional_edges(SUPERVISOR_NODE, next_step)
+            state_graph.add_edge(DISCREPANCY_NODE, SUPERVISOR_NODE)
+            state_graph.add_edge(GUIDANCE_NODE, SUPERVISOR_NODE)
+            state_graph.add_edge(FEEDBACK_NODE, SUPERVISOR_NODE)
+            state_graph.add_edge(GRADING_NODE, SUPERVISOR_NODE)
+            state_graph.add_edge(FINISH_NODE, END)
 
             graph = state_graph.compile(checkpointer=saver)
             yield graph
