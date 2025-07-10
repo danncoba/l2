@@ -64,7 +64,7 @@ SUPERVISOR_TEMPLATE = """
         
         You have the following agents at your disposal:
         discrepancy -> agent that finds the discrepancies between submitted expertise and the one saved within the database
-        guidance -> agent that helps the user and answers his questions when he asks questions. Does not provide guidance on further learning and additional clarification, only answers the questions that user asked
+        guidance -> agent that helps the user and answers his questions when he asks questions. Does not provide guidance on further learning and additional clarification, only answers the questions that user asked.
         feedback -> agent that asks user for further clarifications and or additional input.
         grading -> agent that takes the current conversations and establishes the users final grade or let's you know if additional research is needed
         Take note of evasion or divergence from topic coming from user, and please notify the user that the admin and managers can be involved.
