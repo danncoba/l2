@@ -1,5 +1,7 @@
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 
 from routers.analytics import analytics_router
 from routers.configs import config_router
@@ -16,6 +18,7 @@ from logger import logger
 from telemetry import setup_telemetry, instrument_fastapi
 from utils.tracing import TraceIdMiddleware
 
+load_dotenv()
 # Setup OpenTelemetry tracing
 setup_telemetry()
 
