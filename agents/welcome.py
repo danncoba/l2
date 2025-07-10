@@ -22,10 +22,6 @@ LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
 
-# litellm.api_base = LITE_LLM_URL
-# litellm.api_key = LITE_LLM_API_KEY
-# litellm.provider = "openai"
-
 
 class SingleUserSkillData(BaseModel):
     user_id: int

@@ -1,0 +1,4 @@
+aws_region     = "us-east-1"
+app_image      = "your-account.dkr.ecr.us-east-1.amazonaws.com/morpheus:latest"
+db_password    = "your-secure-password"
+openai_api_key = "your-openai-api-key"
