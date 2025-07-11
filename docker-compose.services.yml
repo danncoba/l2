@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+    networks:
+      - morpheus-network
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery-worker
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+    networks:
+      - morpheus-network
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery-beat
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+      - ./celerybeat-schedule:/app/celerybeat-schedule
+    networks:
+      - morpheus-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - morpheus-network
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=morpheus
+      - POSTGRES_USER=morpheus
+      - POSTGRES_PASSWORD=morpheus
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - morpheus-network
+
+volumes:
+  postgres_data:
+
+networks:
+  morpheus-network:
+    driver: bridge
