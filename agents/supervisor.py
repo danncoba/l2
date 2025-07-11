@@ -1,6 +1,7 @@
 import os
 import operator
 import re
+
 from contextlib import asynccontextmanager
 from typing import (
     List,
@@ -168,12 +169,23 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
         callbacks=[discrepancy_callback],
     )
 
+    msgs = []
+    for msg in state["chat_messages"]:
+        if msg["role"] == "human":
+            answer = f"Answer: {msg["message"]}"
+            msgs.append(answer)
+        elif msg["role"] == "ai":
+            question = f"Question: {msg["message"]}"
+            msgs.append(question)
+    prompt_msgs = "\n".join(msgs)
+
     prompt_template = ChatPromptTemplate.from_template(DISCREPANCY_TEMPLATE)
     prompt = await prompt_template.ainvoke(
         input={
             "user_id": state["discrepancy"].user_id,
             "skill_id": state["discrepancy"].skill_id,
             "current_grade": state["discrepancy"].grade_id,
+            "discussion": prompt_msgs
         }
     )
     print(f"\n\nDISCREPANCY AGAIN PROMPT\n {prompt}")
@@ -196,7 +208,7 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
         "guidance": state["guidance"],
         "next_steps": state["next_steps"],
         "messages": msg,
-        "chat_messages": state["chat_messages"],
+        "chat_messages": [],
     }
 
 
@@ -296,6 +308,8 @@ async def grading_agent(state: SupervisorState) -> SupervisorState:
             Based on the provided discussion your job is to confirm the level of expertise of the user!
             If you are not sure that the grade or expertise is clearly recognizable please let the the user know
             If you're certain state explicitly which expertise is correct for the user!
+            Respond in format of:
+            Observe: Your Answer
 
             Discussion:
             {discussion}
@@ -450,7 +464,7 @@ async def guidance_agent(state: SupervisorState) -> SupervisorState:
         "guidance": state["guidance"],
         "next_steps": state["next_steps"],
         "messages": [msg],
-        "chat_messages": state["chat_messages"],
+        "chat_messages": [],
     }
 
 

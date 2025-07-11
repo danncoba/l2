@@ -34,7 +34,7 @@ GUIDANCE_PROMPT = """
 
 
 DISCREPANCY_TEMPLATE = """
-        We will provide you with ids of user and skill id.
+        We will provide you with ids of user and skill id and discussion with the user.
         For a specific skill provided find the discrepancies between current expertise, and the one already saved.
         If the discrepancies exist and is large (moved 2 or more levels up or down) user needs to provide 2 or 3 reasons why the discrepancies exist,
         to be able to move further!
@@ -46,11 +46,16 @@ DISCREPANCY_TEMPLATE = """
         Your response should be
         1. If user jump is less than two levels. Your answer should be exactly "No discrepancies found" without any additional explanations
         2. If the user jump is two or more levels. Your answer should be explaining the discrepancy in short terms
+        
+        If user has provided sufficient reasoning for the large discrepancy, validate are these valid reasons and if not,
+        ask additional questions to validate their expertise. If the reasons are valid explain that it's ok for the discrepancy and do not ask additional
+        explanations!
 
         Data:
         User id: {user_id}
         Skill id: {skill_id}
         Current grade or expertise: {current_grade}
+        Discussion: {discussion}
 
         Respond in the following format:
         Observe: Your answer
@@ -112,6 +117,7 @@ GUIDANCE_TEMPLATE = """
         If the user is asking for clarification of anything from the context please provide without additional explanations!
         If the user is evading to answer the question and is not asking any questions related to the topic for 4 or 5 messages
         please involve admin. Do not immediately involve admin, wait for 4 or 5 evasions to involve admin!
+        Be concise and precise, without elaborate explanations!
         Respond in the following format:
         Observe: Your answer
         """

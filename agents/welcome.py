@@ -43,7 +43,7 @@ async def prepare_welcome_prompt(
         You need to write a welcoming message to the user in a brief manner, explaining the purpose of the discussion.
         The purpose of the discussion is user self evaluation of specific skill for which grades/expertise level!
         should be selected from user perspective based on available expertise levels (grades).
-        Always write the expertise levels/grades available for self-evaluation!
+        Always write the expertise levels/grades available for self-evaluation, their explanations with their values as well!
         Emphasise the expertise we're discussing!Do not sign the message!Make the expertise part of heading!
         Here are the grades available in json format:
         {grades}
