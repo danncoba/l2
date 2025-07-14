@@ -36,6 +36,7 @@ deprecated = "*"
 traceloop-sdk = "*"
 pgvector = "*"
 litellm = "*"
+langtrace-python-sdk = "*"
 
 [dev-packages]
 pip = "*"

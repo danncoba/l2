@@ -435,11 +435,18 @@ async def guidance_agent(state: SupervisorState) -> SupervisorState:
     print("\n\n\nENTERING GUIDANCE\n\n\n")
     tools = [search]
     template = ChatPromptTemplate.from_template(GUIDANCE_TEMPLATE)
+    msgs = []
+    for msg in state["chat_messages"]:
+        if msg["role"] == "human":
+            answer = f"Answer: {msg["message"]}"
+            msgs.append(answer)
+        elif msg["role"] == "ai":
+            question = f"Question: {msg["message"]}"
+            msgs.append(question)
     prompt = await template.ainvoke(
         input={
             "tools": render_text_description(tools),
-            "context": state["chat_messages"][0]["message"],
-            "answer": state["chat_messages"][-1]["message"],
+            "discussion": "\n".join(msgs)
         }
     )
     model = ChatOpenAI(

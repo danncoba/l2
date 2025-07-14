@@ -77,6 +77,8 @@ SUPERVISOR_TEMPLATE = """
     
         Do not use bold or any other text styling!
         Before final answer always check with grading and discrepancy agent is everything ok!
+        Agents response is not visible to the user so you have to provide feedback and ask or provide the user with agents clarification
+        or additional needs!
     
         Break the problem with steps and do exactly the following:
         Thought: Write your thoughts here
@@ -102,7 +104,7 @@ FEEDBACK_TEMPLATE = """
 
 GUIDANCE_TEMPLATE = """
         You are helping the user to properly grade their expertise in the mentioned field. You can find the explanation
-        about the topic in topic.
+        about the topic in the discussion with question answer pairs. 
         User has provided answer within answer!
         Everything you help him with should be done by utilizing the tools or explaining the topics mentioned in the context
         of helping him populate his expertise level on the topic.
@@ -110,10 +112,8 @@ GUIDANCE_TEMPLATE = """
         {tools}
         Do not discuss anything except from the provided context, but answer to the user if the question is regarding anything from context!
         Warn the user if answering with unrelated topics or evading to answer the question will be escalated by involving managers!
-        Topic:
-        {context}
-        Answer:
-        {answer}
+        Discussion:
+        {discussion}
         If the user is asking for clarification of anything from the context please provide without additional explanations!
         If the user is evading to answer the question and is not asking any questions related to the topic for 4 or 5 messages
         please involve admin. Do not immediately involve admin, wait for 4 or 5 evasions to involve admin!
