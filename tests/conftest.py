@@ -35,12 +35,14 @@ async def redis_container():
 
 @pytest.fixture(scope="session")
 async def test_engine(postgres_container):
-    database_url = postgres_container.get_connection_url().replace("psycopg2", "asyncpg")
+    database_url = postgres_container.get_connection_url().replace(
+        "psycopg2", "asyncpg"
+    )
     engine = create_async_engine(database_url, echo=False)
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-    
+
     yield engine
     await engine.dispose()
 
@@ -56,12 +58,12 @@ async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 def test_client(test_session):
     def override_get_session():
         return test_session
-    
+
     app.dependency_overrides[get_session] = override_get_session
-    
+
     with TestClient(app) as client:
         yield client
-    
+
     app.dependency_overrides.clear()
 
 
@@ -72,7 +74,7 @@ async def test_user(test_session):
         last_name="User",
         email="test@example.com",
         password="password123",
-        is_admin=False
+        is_admin=False,
     )
     test_session.add(user)
     await test_session.commit()
@@ -87,7 +89,7 @@ async def admin_user(test_session):
         last_name="User",
         email="admin@example.com",
         password="admin123",
-        is_admin=True
+        is_admin=True,
     )
     test_session.add(user)
     await test_session.commit()
@@ -122,7 +124,7 @@ async def test_config(test_session):
         matrix_duration=30,
         matrix_ending_at=1800,
         matrix_starting_at=900,
-        matrix_reminders=True
+        matrix_reminders=True,
     )
     test_session.add(config)
     await test_session.commit()
@@ -144,7 +146,7 @@ def admin_auth_headers():
 def mock_current_user(test_user):
     def override_get_current_user():
         return test_user
-    
+
     app.dependency_overrides[get_current_user] = override_get_current_user
     yield test_user
     app.dependency_overrides.clear()
@@ -154,7 +156,7 @@ def mock_current_user(test_user):
 def mock_admin_user(admin_user):
     def override_get_current_user():
         return admin_user
-    
+
     app.dependency_overrides[get_current_user] = override_get_current_user
     yield admin_user
     app.dependency_overrides.clear()

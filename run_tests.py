@@ -11,26 +11,31 @@ import os
 
 def run_tests():
     """Run all tests with proper environment setup"""
-    
+
     # Set test environment variables
     os.environ["TESTING"] = "1"
     os.environ["LOG_LEVEL"] = "WARNING"
-    
+
     # Install test dependencies
     print("Installing test dependencies...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements-test.txt"], check=True)
-    
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-r", "requirements-test.txt"],
+        check=True,
+    )
+
     # Run tests
     print("Running tests...")
     cmd = [
-        sys.executable, "-m", "pytest",
+        sys.executable,
+        "-m",
+        "pytest",
         "tests/",
         "-v",
         "--tb=short",
         "--asyncio-mode=auto",
-        "--disable-warnings"
+        "--disable-warnings",
     ]
-    
+
     result = subprocess.run(cmd)
     return result.returncode
 

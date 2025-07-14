@@ -51,25 +51,30 @@ async def test_guidance_provider_with_file(state):
     )
     response = await guidance_agent(state)
     all_messages = [
-        HumanMessage(msg["message"]) if msg["role"] == "human" else AIMessage(msg["message"])
+        (
+            HumanMessage(msg["message"])
+            if msg["role"] == "human"
+            else AIMessage(msg["message"])
+        )
         for msg in response["chat_messages"]
     ]
     guidance_msg = [
-        msg.message if msg.role == "guidance" else None
-        for msg in response["messages"]
+        msg.message if msg.role == "guidance" else None for msg in response["messages"]
     ]
-    prompt_template = ChatPromptTemplate.from_messages([
-        SystemMessage(
-            """
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            SystemMessage(
+                """
             Does the last message respond correctly to the user?
             Respond exactly with the following json schema:
             is_response_correct: boolean // whether the response is responding correctly to the user
             response_reason: str // the reasoning why it's correct or not correct
             """
-        ),
-        *all_messages,
-        *guidance_msg
-    ])
+            ),
+            *all_messages,
+            *guidance_msg,
+        ]
+    )
     print(f"ALLL MESSAGES {all_messages}")
     print(f"PROMPT TEMPLATE {prompt_template}")
     prompt = await prompt_template.ainvoke({})
@@ -79,7 +84,7 @@ async def test_guidance_provider_with_file(state):
     print(f"GUIDANCE TEST RESPONSE {response}")
     json_response = JsonResponse.model_validate_json(are_similar.content)
     print(f"JSON RESPONSE {json_response}")
-    with open('output.csv', 'a', newline='') as file:
+    with open("output.csv", "a", newline="") as file:
         writer = csv.writer(file)
         msgs_content = "\n\n--->\n".join([msg.content for msg in all_messages])
         msgs_guidance = "\n\n--->\n".join([msg.content for msg in guidance_msg])

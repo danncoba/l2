@@ -1,7 +1,10 @@
+import os
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# from langtrace_python_sdk import langtrace
 
 from routers.analytics import analytics_router
 from routers.configs import config_router
@@ -23,6 +26,10 @@ load_dotenv()
 setup_telemetry()
 
 logger.info("Starting application...")
+
+# LANGTRACE_API_KEY = os.getenv("LANGTRACE_API_KEY")
+#
+# langtrace.init(api_key = LANGTRACE_API_KEY)
 
 app = FastAPI(
     title="Morpheus @ HTEC",

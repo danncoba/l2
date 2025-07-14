@@ -13,7 +13,7 @@ from typing import (
 )
 
 from dotenv import load_dotenv
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import StructuredTool, render_text_description
 from langchain_community.tools import TavilySearchResults
@@ -135,6 +135,10 @@ class SupervisorState(TypedDict):
     chat_messages: Annotated[List[ChatMessage], operator.add]
 
 
+def extract_to_ai_and_human_msgs() -> List[AIMessage | HumanMessage | SystemMessage]:
+    pass
+
+
 async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
     """
     Executes the discrepancy checking process for a user and skill and provides
@@ -185,7 +189,7 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
             "user_id": state["discrepancy"].user_id,
             "skill_id": state["discrepancy"].skill_id,
             "current_grade": state["discrepancy"].grade_id,
-            "discussion": prompt_msgs
+            "discussion": prompt_msgs,
         }
     )
     print(f"\n\nDISCREPANCY AGAIN PROMPT\n {prompt}")
@@ -434,19 +438,18 @@ async def guidance_agent(state: SupervisorState) -> SupervisorState:
     """
     print("\n\n\nENTERING GUIDANCE\n\n\n")
     tools = [search]
-    template = ChatPromptTemplate.from_template(GUIDANCE_TEMPLATE)
     msgs = []
     for msg in state["chat_messages"]:
         if msg["role"] == "human":
-            answer = f"Answer: {msg["message"]}"
-            msgs.append(answer)
+            msgs.append(HumanMessage(msg["message"]))
         elif msg["role"] == "ai":
-            question = f"Question: {msg["message"]}"
-            msgs.append(question)
+            msgs.append(AIMessage(msg["message"]))
+    template = ChatPromptTemplate.from_messages(
+        [SystemMessage(GUIDANCE_TEMPLATE)] + msgs
+    )
     prompt = await template.ainvoke(
         input={
             "tools": render_text_description(tools),
-            "discussion": "\n".join(msgs)
         }
     )
     model = ChatOpenAI(
