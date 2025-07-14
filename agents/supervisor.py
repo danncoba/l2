@@ -426,7 +426,7 @@ async def feedback_agent(state: SupervisorState) -> SupervisorState:
 async def guidance_agent(state: SupervisorState) -> SupervisorState:
     """
     Executes the guidance agent workflow using the provided state. This function builds a
-    compatible prompt, utilizes ChatOpenAI for processing, and generates an appropriate
+    compatible prompt, uses ChatOpenAI for processing, and generates an appropriate
     response from the agent. The response is then structured and prepared for return.
 
     :param state: Current state passed to the guidance agent. The state must implement

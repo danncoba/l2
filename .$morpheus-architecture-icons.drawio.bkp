@@ -1,0 +1,316 @@
+<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="5.0" etag="abc123" version="22.1.16" type="device">
+  <diagram name="Morpheus Architecture" id="morpheus-arch">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- User Layer with Icons -->
+        <mxCell id="user" value="Engineer/User" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/avatars-15/64/_Ninja-2-512.png;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="78" y="50" width="64" height="64" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="chatui" value="Chat Interface" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn2.iconfinder.com/data/icons/font-awesome/1792/comment-512.png;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="278" y="50" width="64" height="64" as="geometry" />
+        </mxCell>
+        
+        <!-- API Layer with FastAPI Icon -->
+        <mxCell id="fastapi" value="FastAPI Application&lt;br&gt;Port: 8000" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/fastapi/fastapi-original.svg;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="493" y="50" width="64" height="64" as="geometry" />
+        </mxCell>
+        
+        <!-- AI Agent System -->
+        <mxCell id="agent-group" value="AI Multi-Agent System" style="swimlane;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#2e7d32;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="50" y="200" width="550" height="200" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="supervisor" value="Supervisor Agent&lt;br&gt;Orchestrates Flow" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/artificial-intelligence-ai/64/robot-artificial-intelligence-ai-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="agent-group">
+          <mxGeometry x="45" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="guidance" value="Guidance Agent&lt;br&gt;Educational Content" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/artificial-intelligence-ai/64/artificial-intelligence-ai-brain-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="agent-group">
+          <mxGeometry x="165" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="discrepancy" value="Discrepancy Agent&lt;br&gt;Validates Claims" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/artificial-intelligence-ai/64/artificial-intelligence-ai-search-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="agent-group">
+          <mxGeometry x="285" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="feedback" value="Feedback Agent&lt;br&gt;Constructive Feedback" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/artificial-intelligence-ai/64/artificial-intelligence-ai-chat-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="agent-group">
+          <mxGeometry x="405" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="grading" value="Grading Agent&lt;br&gt;Expertise Evaluation" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/artificial-intelligence-ai/64/artificial-intelligence-ai-analytics-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="agent-group">
+          <mxGeometry x="165" y="120" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="evasion" value="Evasion Detector&lt;br&gt;Detects Avoidance" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/artificial-intelligence-ai/64/artificial-intelligence-ai-shield-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="agent-group">
+          <mxGeometry x="285" y="120" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Core Services -->
+        <mxCell id="service-group" value="Core Services" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="700" y="200" width="280" height="200" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="skillmatrix" value="Skill Matrix Service" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn2.iconfinder.com/data/icons/business-and-finance-related-hand-drawn-icons/100/hand_drawn-17-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="service-group">
+          <mxGeometry x="50" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="assessment" value="Assessment Service" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn2.iconfinder.com/data/icons/business-and-finance-related-hand-drawn-icons/100/hand_drawn-10-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="service-group">
+          <mxGeometry x="180" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="notification" value="Notification Service" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/glypho-free/64/mail-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="service-group">
+          <mxGeometry x="50" y="120" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="analytics" value="Analytics Service" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/glypho-free/64/chart-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="service-group">
+          <mxGeometry x="180" y="120" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Data Storage with Database Icons -->
+        <mxCell id="data-group" value="Data Storage" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#880e4f;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="200" width="280" height="200" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="postgresql" value="PostgreSQL&lt;br&gt;+ pgvector" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg;fontSize=10;fontStyle=1;" vertex="1" parent="data-group">
+          <mxGeometry x="35" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="redis" value="Redis Cache" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg;fontSize=10;fontStyle=1;" vertex="1" parent="data-group">
+          <mxGeometry x="135" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="minio" value="MinIO&lt;br&gt;File Storage&lt;br&gt;Port: 9001" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/minio.svg;fontSize=10;fontStyle=1;" vertex="1" parent="data-group">
+          <mxGeometry x="235" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- AI/ML Services with Tech Icons -->
+        <mxCell id="ai-group" value="AI/ML Services" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f1f8e9;strokeColor=#33691e;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="50" y="480" width="400" height="150" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="openai" value="OpenAI API" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.worldvectorlogo.com/logos/openai-2.svg;fontSize=10;fontStyle=1;" vertex="1" parent="ai-group">
+          <mxGeometry x="35" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="langchain" value="LangChain" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://python.langchain.com/img/brand/wordmark.png;fontSize=10;fontStyle=1;" vertex="1" parent="ai-group">
+          <mxGeometry x="135" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="langgraph" value="LangGraph" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://python.langchain.com/img/brand/wordmark.png;fontSize=10;fontStyle=1;" vertex="1" parent="ai-group">
+          <mxGeometry x="235" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="tavily" value="Tavily Search" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/glypho-free/64/search-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="ai-group">
+          <mxGeometry x="335" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Background Tasks with Python/Celery Icons -->
+        <mxCell id="task-group" value="Background Tasks" style="swimlane;whiteSpace=wrap;html=1;fillColor=#e0f2f1;strokeColor=#00695c;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="500" y="480" width="200" height="150" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="celery" value="Celery&lt;br&gt;Task Queue" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg;fontSize=10;fontStyle=1;" vertex="1" parent="task-group">
+          <mxGeometry x="35" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="celeryworker" value="Celery Workers" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/glypho-free/64/settings-512.png;fontSize=10;fontStyle=1;" vertex="1" parent="task-group">
+          <mxGeometry x="125" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Observability with Monitoring Tool Icons -->
+        <mxCell id="obs-group" value="Observability &amp; Monitoring" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f9fbe7;strokeColor=#827717;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="750" y="480" width="400" height="150" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="otel" value="OpenTelemetry" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png;fontSize=10;fontStyle=1;" vertex="1" parent="obs-group">
+          <mxGeometry x="35" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="jaeger" value="Jaeger Tracing&lt;br&gt;Port: 16686" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://www.jaegertracing.io/img/jaeger-logo.svg;fontSize=10;fontStyle=1;" vertex="1" parent="obs-group">
+          <mxGeometry x="135" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="grafana" value="Grafana Dashboard&lt;br&gt;Port: 3000" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/grafana/grafana-original.svg;fontSize=10;fontStyle=1;" vertex="1" parent="obs-group">
+          <mxGeometry x="235" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="loki" value="Loki Logs" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://grafana.com/static/img/logos/grafana_logo.svg;fontSize=10;fontStyle=1;" vertex="1" parent="obs-group">
+          <mxGeometry x="335" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Docker Services Section -->
+        <mxCell id="docker-group" value="Docker Services" style="swimlane;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1976d2;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="50" y="900" width="400" height="150" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="docker-fastapi" value="FastAPI Container" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg;fontSize=10;fontStyle=1;" vertex="1" parent="docker-group">
+          <mxGeometry x="35" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="docker-celery-worker" value="Celery Worker Container" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg;fontSize=10;fontStyle=1;" vertex="1" parent="docker-group">
+          <mxGeometry x="135" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="docker-celery-beat" value="Celery Beat Container" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg;fontSize=10;fontStyle=1;" vertex="1" parent="docker-group">
+          <mxGeometry x="235" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="docker-compose" value="Docker Compose" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg;fontSize=10;fontStyle=1;" vertex="1" parent="docker-group">
+          <mxGeometry x="335" y="40" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Expertise Levels -->
+        <mxCell id="levels-group" value="Expertise Levels" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff8e1;strokeColor=#ff8f00;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="50" y="700" width="1100" height="120" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="level1" value="1. Not Informed&lt;br&gt;❌ No Knowledge" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#c62828;fontSize=9;" vertex="1" parent="levels-group">
+          <mxGeometry x="20" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="level2" value="2. Informed Basics&lt;br&gt;📖 Basic Concepts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;fontSize=9;" vertex="1" parent="levels-group">
+          <mxGeometry x="160" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="level3" value="3. Informed Details&lt;br&gt;🎯 Strategic Understanding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#4a148c;fontSize=9;" vertex="1" parent="levels-group">
+          <mxGeometry x="300" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="level4" value="4. Practice &amp; Lab&lt;br&gt;🧪 Practical Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e8;strokeColor=#2e7d32;fontSize=9;" vertex="1" parent="levels-group">
+          <mxGeometry x="440" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="level5" value="5. Production Maintenance&lt;br&gt;⚙️ Prod Environment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#01579b;fontSize=9;" vertex="1" parent="levels-group">
+          <mxGeometry x="580" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="level6" value="6. Production from Scratch&lt;br&gt;🏗️ Full System Setup" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f8e9;strokeColor=#33691e;fontSize=9;" vertex="1" parent="levels-group">
+          <mxGeometry x="720" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="level7" value="7. Educator/Expert&lt;br&gt;🎓 Teaching &amp; Leadership" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2f1;strokeColor=#00695c;fontSize=9;" vertex="1" parent="levels-group">
+          <mxGeometry x="860" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections -->
+        <mxCell id="conn1" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="user" target="chatui">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="200" y="300" as="sourcePoint" />
+            <mxPoint x="250" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="conn2" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="chatui" target="fastapi">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="400" y="300" as="sourcePoint" />
+            <mxPoint x="450" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="conn3" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="fastapi" target="supervisor">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="150" as="sourcePoint" />
+            <mxPoint x="150" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="conn4" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="guidance" target="skillmatrix">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="600" y="300" as="sourcePoint" />
+            <mxPoint x="650" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="conn5" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="skillmatrix" target="postgresql">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="900" y="300" as="sourcePoint" />
+            <mxPoint x="950" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="conn6" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="supervisor" target="openai">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="100" y="400" as="sourcePoint" />
+            <mxPoint x="100" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="conn7" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="fastapi" target="celery">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="150" as="sourcePoint" />
+            <mxPoint x="550" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="conn8" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="fastapi" target="otel">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="600" y="150" as="sourcePoint" />
+            <mxPoint x="800" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Docker connections -->
+        <mxCell id="docker-conn1" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="docker-fastapi" target="fastapi">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="110" y="900" as="sourcePoint" />
+            <mxPoint x="525" y="150" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="docker-conn2" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="docker-celery-worker" target="celery">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="210" y="900" as="sourcePoint" />
+            <mxPoint x="560" y="530" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Level progression arrows -->
+        <mxCell id="level-arrow1" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="level1" target="level2">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="150" y="750" as="sourcePoint" />
+            <mxPoint x="200" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="level-arrow2" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="level2" target="level3">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="290" y="750" as="sourcePoint" />
+            <mxPoint x="340" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="level-arrow3" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="level3" target="level4">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="430" y="750" as="sourcePoint" />
+            <mxPoint x="480" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="level-arrow4" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="level4" target="level5">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="570" y="750" as="sourcePoint" />
+            <mxPoint x="620" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="level-arrow5" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="level5" target="level6">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="710" y="750" as="sourcePoint" />
+            <mxPoint x="760" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="level-arrow6" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="level6" target="level7">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="850" y="750" as="sourcePoint" />
+            <mxPoint x="900" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
