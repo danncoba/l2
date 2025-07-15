@@ -74,3 +74,20 @@ async def get_today_date() -> str:
     """
     today = date.today()
     return f"Today date: {today}"
+
+
+async def get_days_difference(eval_date: date, today_date: date) -> int:
+    """
+    Calculate the difference in days between two dates.
+
+    This asynchronous function computes the difference in days
+    between the provided evaluation date and today's date, given
+    as parameters.
+
+    :param eval_date: The evaluation date to compare.
+    :param today_date: The current date used for comparison.
+    :return: The difference in days as an integer.
+    :rtype int: number of days since between eval date and today date
+    """
+    delta = today_date - eval_date
+    return delta.days

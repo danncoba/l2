@@ -9,6 +9,7 @@ from typing import (
     TypedDict,
     Annotated,
     Literal,
+    Optional,
 )
 
 from dotenv import load_dotenv
@@ -21,13 +22,10 @@ from langgraph.graph import StateGraph, START, END, add_messages
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import interrupt
+from langtrace_python_sdk import get_prompt_from_registry
 from pydantic import BaseModel
 
 from agents.consts import (
-    DISCREPANCY_TEMPLATE,
-    SUPERVISOR_TEMPLATE,
-    FEEDBACK_TEMPLATE,
-    GUIDANCE_TEMPLATE,
     MODERATION_TEMPLATE,
 )
 from agents.dto import AgentMessage, ChatMessage
@@ -37,6 +35,7 @@ from tools.tools import (
     find_current_grade_for_user_and_skill,
     get_grades_or_expertise,
     get_today_date,
+    get_days_difference,
 )
 from utils.common import convert_agent_msg_to_llm_message
 
@@ -83,7 +82,7 @@ class DiscrepancyValues(BaseModel):
     :type user_id: int
     """
 
-    grade_id: int
+    grade_id: Optional[int]
     skill_id: int
     user_id: int
 
@@ -209,6 +208,10 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
             function=get_today_date,
             coroutine=get_today_date,
         ),
+        StructuredTool.from_function(
+            func=get_days_difference,
+            coroutine=get_days_difference,
+        ),
     ]
     model = ChatOpenAI(
         temperature=0,
@@ -229,8 +232,9 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
             question = f"Question: {msg["message"]}"
             msgs.append(question)
     prompt_msgs = "\n".join(msgs)
-
-    prompt_template = ChatPromptTemplate.from_template(DISCREPANCY_TEMPLATE)
+    prompt_id = "cmd4dt6xl000fyrs57cer5egx"
+    discrepancy_prompt = get_prompt_from_registry(prompt_id)
+    prompt_template = ChatPromptTemplate.from_template(discrepancy_prompt["value"])
     prompt = await prompt_template.ainvoke(
         input={
             "tools": render_text_description(tools),
@@ -281,7 +285,9 @@ async def supervisor_agent(state: SupervisorState) -> SupervisorState:
         messages processed by the supervisor, and any additional chat messages to append.
     :rtype: SupervisorState
     """
-    prompt_template = ChatPromptTemplate.from_template(SUPERVISOR_TEMPLATE)
+    prompt_id = "cmd4d8jim0009yrs50qqty8u3"
+    supervisor_prompt = get_prompt_from_registry(prompt_id)
+    prompt_template = ChatPromptTemplate.from_template(supervisor_prompt["value"])
     msgs = []
     for msg in state["chat_messages"]:
         if msg["role"] == "human":
@@ -422,11 +428,13 @@ async def feedback_agent(state: SupervisorState) -> SupervisorState:
         streaming=True,
         verbose=True,
     )
+    prompt_id = "cmd4i8ixd000tyrs5qs3egjwq"
+    feedback_prompt = get_prompt_from_registry(prompt_id)
     msgs = convert_agent_msg_to_llm_message(state["messages"])
     print(f"\n\nFEEDBACK AGENT PROMPT\n {msgs}")
     print(f"\n\nFEEDBACK AGENT PROMPT\n {state['chat_messages'][-1]}")
     prompt_template = ChatPromptTemplate.from_messages(
-        [SystemMessage(FEEDBACK_TEMPLATE)] + msgs
+        [SystemMessage(feedback_prompt["value"])] + msgs
     )
     prompt = await prompt_template.ainvoke(input={})
     feedback_response = await model.ainvoke(prompt)
@@ -470,7 +478,14 @@ async def guidance_agent(state: SupervisorState) -> SupervisorState:
     :rtype: SupervisorState
     """
     print("\n\n\nENTERING GUIDANCE\n\n\n")
-    tools = [search, get_grades_or_expertise]
+    tools = [
+        search,
+        StructuredTool.from_function(
+            name="get_grades_or_expertise",
+            function=get_grades_or_expertise,
+            coroutine=get_grades_or_expertise,
+        ),
+    ]
     msgs = []
     for msg in state["chat_messages"]:
         if msg["role"] == "human":
@@ -478,7 +493,9 @@ async def guidance_agent(state: SupervisorState) -> SupervisorState:
         elif msg["role"] == "ai":
             msgs.append(f"Question: {msg['message']}")
     msgs_str = "\n".join(msgs)
-    template = ChatPromptTemplate.from_template(GUIDANCE_TEMPLATE)
+    prompt_id = "cmd4jco2x001fyrs5gjan2xki"
+    guidance_prompt = get_prompt_from_registry(prompt_id)
+    template = ChatPromptTemplate.from_template(guidance_prompt["value"])
     prompt = await template.ainvoke(
         input={"tools": render_text_description(tools), "discussion": msgs_str}
     )
@@ -532,15 +549,15 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
     try:
         async with get_checkpointer() as saver:
             state_graph = StateGraph(SupervisorState)
-            state_graph.add_node(MODERATION_NODE, moderation_agent)
+            # state_graph.add_node(MODERATION_NODE, moderation_agent)
             state_graph.add_node(SUPERVISOR_NODE, supervisor_agent)
             state_graph.add_node(DISCREPANCY_NODE, discrepancy_agent)
             state_graph.add_node(GUIDANCE_NODE, guidance_agent)
             state_graph.add_node(FEEDBACK_NODE, feedback_agent)
             state_graph.add_node(GRADING_NODE, grading_agent)
             state_graph.add_node(FINISH_NODE, finish)
-            state_graph.add_edge(START, MODERATION_NODE)
-            state_graph.add_edge(MODERATION_NODE, SUPERVISOR_NODE)
+            # state_graph.add_edge(START, MODERATION_NODE)
+            state_graph.add_edge(START, SUPERVISOR_NODE)
             state_graph.add_conditional_edges(SUPERVISOR_NODE, next_step)
             state_graph.add_edge(DISCREPANCY_NODE, SUPERVISOR_NODE)
             state_graph.add_edge(GUIDANCE_NODE, SUPERVISOR_NODE)

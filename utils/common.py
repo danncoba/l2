@@ -25,10 +25,17 @@ def convert_msg_dict_to_langgraph_format(
     return langchain_msgs
 
 
-def convert_agent_msg_to_llm_message(agent_msgs: List[AgentMessage]) -> List[str]:
-    langchain_msgs: List[str] = []
+def convert_agent_msg_to_llm_message(
+    agent_msgs: List[AgentMessage],
+) -> List[AIMessage | HumanMessage | SystemMessage]:
+    langchain_msgs: List[AgentMessage | HumanMessage | SystemMessage] = []
+    counter = 0
     for agent_msg in agent_msgs:
-        langchain_msgs.append(agent_msg.message)
+        if counter == 0 or counter % 2 == 0:
+            langchain_msgs.append(AIMessage(agent_msg.message.content))
+        else:
+            langchain_msgs.append(HumanMessage(agent_msg.message.content))
+        counter += 1
     return langchain_msgs
 
 

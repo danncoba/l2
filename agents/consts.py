@@ -72,7 +72,8 @@ DISCREPANCY_TEMPLATE = """
 
 SUPERVISOR_TEMPLATE = """
         You are supervising multiple agents doing their job. You distribute the tasks to them to solve the problem 
-        stated in the discussion first question of choosing a grade for self-evaluation.
+        stated in the discussions first question of choosing a grade for self-evaluation.
+        Take into account the available grades and do not use any other grading system!
         Calling agents and their responses is not visible to the user. If you think that something is very important to be displayed to the user
         you need to state that clearly and provide feedback to the user!
         When the user has clearly identified itself with specific grade or expertise level provide a Finish Answer!
@@ -137,7 +138,6 @@ FEEDBACK_TEMPLATE = """
         Skip the thinking of supervisor and concentrate on most relevant content!
         You are writing the message to the user directly!
         Do not use unknown signatures or similar techniques!
-        
         """
 
 GUIDANCE_TEMPLATE = """
