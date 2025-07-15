@@ -28,21 +28,7 @@ class CustomLlmTrackerCallback(BaseCallbackHandler):
         parent_run_id: Optional[UUID] = None,
         **kwargs: Any,
     ) -> Any:
-        with tracer.start_as_current_span(f"{self._name}_on_llm_new_token") as span:
-            span.set_attribute(f"{self._name}_llm.on_llm_new_token.token", token)
-            span.set_attribute(f"{self._name}_llm.on_llm_new_token.run_id", run_id)
-            span.set_attribute(
-                f"{self._name}_llm.on_llm_new_token.chunk",
-                str(chunk) if chunk is not None else None,
-            )
-            span.set_attribute(
-                f"{self._name}_llm.on_llm_new_token.parent_run_id", parent_run_id
-            )
-            span.set_attribute(f"{self._name}_llm.on_llm_new_token.kwargs", kwargs)
-
-        return super().on_llm_new_token(
-            token, chunk=chunk, run_id=run_id, parent_run_id=parent_run_id, **kwargs
-        )
+        pass
 
     def on_llm_end(
         self,

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Any
 
 from db.db import get_session
@@ -7,7 +8,12 @@ from service.service import BaseService
 
 
 async def get_expertise_level_or_grades(query: str) -> List[GradeResponseBase]:
-    """Use this tool to get expertise level (grades) from within the system"""
+    """
+    Use this tool to get expertise level (grades) from within the system
+    :param query: string representing the query to search for
+    :return list of grades or expertise levels available in the system
+    :rtype: List[GradeResponseBase]: List of GradeResponseBase objects
+    """
     async for session in get_session():
         service: BaseService[Grade, int, Any, Any] = BaseService(Grade, session)
         return await service.list_all()
@@ -19,8 +25,11 @@ async def find_current_grade_for_user_and_skill(
     """
     Utilize to find current expertise and grading level with user id and skill_id
     :param user_id: users id
+    :type user_id: int
     :param skill_id: skill id
+    :type skill_id: int
     :return:
+    :rtype: UserSkills: UserSkills object with all the fields
     """
     async for session in get_session():
         user_skill_service: BaseService[UserSkills, int, Any, Any] = BaseService(
@@ -44,6 +53,7 @@ async def get_grades_or_expertise() -> List[Grade]:
     """
     Useful tool to retrieve current grades or expertise level grading system
     :return: List of json representing those grades and all their fields
+    :rtype: List[Grade]: List of Grade objects
     """
     async for session in get_session():
         service: BaseService[Grade, int, Any, Any] = BaseService(Grade, session)
@@ -53,3 +63,14 @@ async def get_grades_or_expertise() -> List[Grade]:
             json_grade = grade.model_dump_json()
             all_grades_json.append(json_grade)
         return all_grades_json
+
+
+async def get_today_date() -> str:
+    """
+    Use this tool to retrieve today's date so you can understand how much time has passed
+    from the previous evaluation until today
+    :return: string representing today's date in format "Today date: %Y-%m-%d"
+    :rtype: str
+    """
+    today = date.today()
+    return f"Today date: {today}"

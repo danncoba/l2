@@ -212,7 +212,10 @@ async def reason_through(
 
 async def run_graph_stream(state: SupervisorState) -> AsyncGenerator[str, None]:
     async with get_graph() as graph:
-        configurable_run = {"configurable": {"thread_id": uuid.uuid4()}}
+        configurable_run = {
+            "configurable": {"thread_id": uuid.uuid4()},
+            "recursion_limit": 10,
+        }
         state_history = await graph.aget_state(configurable_run)
         print(f"State history {state_history}")
         async for chunk in graph.astream(state, configurable_run):

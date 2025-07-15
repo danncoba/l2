@@ -11,14 +11,11 @@ from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.urllib import URLLibInstrumentor
 
-from traceloop.sdk import Traceloop
-
 
 def setup_telemetry():
     """Setup OpenTelemetry tracing and instrumentation"""
 
     # Create a resource to identify your service
-    # Traceloop.init()
     resource = Resource.create(
         {
             "service.name": "htec-morpheus",

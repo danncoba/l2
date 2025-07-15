@@ -130,19 +130,19 @@ services:
       - loki
 
     # Grafana for visualization
-  grafana:
-    image: grafana/grafana:10.1.0
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana-storage:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-    depends_on:
-      - loki
-      - jaeger
+#  grafana:
+#    image: grafana/grafana:10.1.0
+#    container_name: grafana
+#    ports:
+#      - "3000:3000"
+#    environment:
+#      - GF_SECURITY_ADMIN_PASSWORD=admin
+#    volumes:
+#      - grafana-storage:/var/lib/grafana
+#      - ./grafana/provisioning:/etc/grafana/provisioning
+#    depends_on:
+#      - loki
+#      - jaeger
 
   minio:
     image: minio/minio:latest
@@ -157,9 +157,63 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin  # Root password for MinIO
     command: server /data --console-address ":9001"
 
+  langtrace-app:
+    container_name: langtrace
+    image: scale3labs/langtrace-client:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    working_dir: /app
+    env_file:
+      - langtrace.env
+    ports:
+      - "3000:3000"
+    # Uncomment this for development
+    # command: npm run dev
+    # volumes:
+    #   - .:/app
+    restart: on-failure:5
+    depends_on:
+      pgdb:
+        condition: service_started
+        required: true
+      clickhouse-db:
+        condition: service_healthy
+        required: true
+
+  clickhouse-db:
+    container_name: langtrace-clickhouse
+    image: clickhouse/clickhouse-server:24.5.1.1763-alpine
+    environment:
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - CLICKHOUSE_PASSWORD=slobomirp7008
+      - CLICKHOUSE_USER=danijel
+      - CLICKHOUSE_DB=langtrace
+    ports:
+      - "8123:8123"
+      - "9002:9000"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://langtrace-clickhouse:8123/ping || exit 1
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
+      interval: 30s
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+
+  langtrace-app-prod:
+    extends:
+      service: langtrace-app
+    build:
+      target: production
+    profiles:
+      - production
+
 
 volumes:
   pgdata:
-  grafana-storage:
+#  grafana-storage:
   minio-data:
   cassandra-data:
+  clickhouse-data:

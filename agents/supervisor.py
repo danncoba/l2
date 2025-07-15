@@ -1,7 +1,6 @@
-import os
 import operator
+import os
 import re
-
 from contextlib import asynccontextmanager
 from typing import (
     List,
@@ -13,28 +12,32 @@ from typing import (
 )
 
 from dotenv import load_dotenv
+from langchain_community.tools import TavilySearchResults
 from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import StructuredTool, render_text_description
-from langchain_community.tools import TavilySearchResults
 from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, START, END, add_messages
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import interrupt
 from pydantic import BaseModel
-from langgraph.graph import StateGraph, START, END, add_messages
-from agents.dto import AgentMessage, ChatMessage
 
 from agents.consts import (
     DISCREPANCY_TEMPLATE,
     SUPERVISOR_TEMPLATE,
     FEEDBACK_TEMPLATE,
     GUIDANCE_TEMPLATE,
+    MODERATION_TEMPLATE,
 )
-from agents.llm_callback import CustomLlmTrackerCallback
+from agents.dto import AgentMessage, ChatMessage
 from agents.reasoner import get_checkpointer
 from logger import logger
-from tools.tools import find_current_grade_for_user_and_skill, get_grades_or_expertise
+from tools.tools import (
+    find_current_grade_for_user_and_skill,
+    get_grades_or_expertise,
+    get_today_date,
+)
 from utils.common import convert_agent_msg_to_llm_message
 
 load_dotenv()
@@ -51,15 +54,14 @@ TRACING_GUIDANCE_AGENT = "guidance_agent"
 TRACING_SUPERVISOR_AGENT = "supervisor_agent"
 TRACING_FEEDBACK_AGENT = "feedback_agent"
 TRACING_GRADING_AGENT = "grading_agent"
-TRACING_EVADE_AGENT = "evasion_detector_agent"
 TRACING_START = "start"
 TRACING_END = "end"
 TRACING_FINISH = "finish"
 TRACING_NEXT_STEP = "next_step"
+MODERATION_NODE = "moderation"
 SUPERVISOR_NODE = "supervisor"
 FEEDBACK_NODE = "feedback"
 GRADING_NODE = "grading"
-EVADE_NODE = "evasion_detector"
 DISCREPANCY_NODE = "discrepancy"
 GUIDANCE_NODE = "guidance"
 FINISH_NODE = "finish"
@@ -90,7 +92,7 @@ class GuidanceValue(BaseModel):
     """
     Represents a value guided by a list of messages with specific annotations.
 
-    This class is utilized to encapsulate a collection of messages, allowing
+    This class is used to encapsulate a collection of messages, allowing
     additional modifications or processing based on their annotations.
 
     :ivar messages: A list of messages annotated with `add_messages`.
@@ -139,6 +141,49 @@ def extract_to_ai_and_human_msgs() -> List[AIMessage | HumanMessage | SystemMess
     pass
 
 
+async def moderation_agent(state: SupervisorState) -> SupervisorState:
+    """
+    Analyzes and processes the provided state to detect and handle inappropriate content.
+    This function operates asynchronously, utilizing the capabilities defined in
+    the SupervisorState object. It ensures inappropriate content within the given state
+    is properly addressed, updating the state accordingly.
+
+    :param state: The current SupervisorState instance containing information regarding
+                  the system state and content to analyze.
+    :type state: SupervisorState
+    :return: An updated SupervisorState instance with processed changes applied.
+    :rtype: SupervisorState
+    """
+    model = ChatOpenAI(
+        temperature=0,
+        max_tokens=300,
+        model=LITE_MODEL,
+        api_key=LITE_LLM_API_KEY,
+        base_url=LITE_LLM_URL,
+        streaming=True,
+        verbose=True,
+    )
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            SystemMessage(MODERATION_TEMPLATE)
+            + [
+                (
+                    AIMessage(msg["message"])
+                    if msg["role"] == "ai"
+                    else HumanMessage(msg["message"])
+                )
+                for msg in state["chat_messages"]
+            ]
+        ]
+    )
+    prompt = await prompt_template.ainvoke({})
+    print(f"\n\nMODERATION PROMPT\n {prompt}")
+    response = await model.ainvoke(prompt)
+    print(f"\n\nMODERATION RESPONSE\n {response}")
+
+    return state
+
+
 async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
     """
     Executes the discrepancy checking process for a user and skill and provides
@@ -151,7 +196,6 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
         next steps, and any generated agent messages.
     :rtype: SupervisorState
     """
-    discrepancy_callback = CustomLlmTrackerCallback(TRACING_DISCREPANCY_AGENT)
     tools = [
         StructuredTool.from_function(
             function=find_current_grade_for_user_and_skill,
@@ -160,6 +204,10 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
         StructuredTool.from_function(
             function=get_grades_or_expertise,
             coroutine=get_grades_or_expertise,
+        ),
+        StructuredTool.from_function(
+            function=get_today_date,
+            coroutine=get_today_date,
         ),
     ]
     model = ChatOpenAI(
@@ -170,7 +218,6 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
         base_url=LITE_LLM_URL,
         streaming=True,
         verbose=True,
-        callbacks=[discrepancy_callback],
     )
 
     msgs = []
@@ -186,6 +233,7 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
     prompt_template = ChatPromptTemplate.from_template(DISCREPANCY_TEMPLATE)
     prompt = await prompt_template.ainvoke(
         input={
+            "tools": render_text_description(tools),
             "user_id": state["discrepancy"].user_id,
             "skill_id": state["discrepancy"].skill_id,
             "current_grade": state["discrepancy"].grade_id,
@@ -349,25 +397,10 @@ async def grading_agent(state: SupervisorState) -> SupervisorState:
     }
 
 
-async def evasion_detector_agent(state: SupervisorState) -> SupervisorState:
-    prompt_template = ChatPromptTemplate.from_template(
-        """
-        From provided discussion, check whether the user is evading to answer a provided question?
-
-        Discussion:
-        {}
-
-        Respond in the following format:
-        Observe: Your answer
-        """
-    )
-    return state
-
-
 async def feedback_agent(state: SupervisorState) -> SupervisorState:
     """
     Asynchronously processes feedback for a given supervisor state using an AI chat
-    model and generates a response. This function utilizes an AI model to analyze
+    model and generates a response. This function uses an AI model to analyze
     the provided supervisor state and generates feedback based on the state’s
      attributes, including its messages and discrepancy information. The resulting
     feedback is returned alongside updated state information.
@@ -437,20 +470,17 @@ async def guidance_agent(state: SupervisorState) -> SupervisorState:
     :rtype: SupervisorState
     """
     print("\n\n\nENTERING GUIDANCE\n\n\n")
-    tools = [search]
+    tools = [search, get_grades_or_expertise]
     msgs = []
     for msg in state["chat_messages"]:
         if msg["role"] == "human":
-            msgs.append(HumanMessage(msg["message"]))
+            msgs.append(f"Answer: {msg['message']}")
         elif msg["role"] == "ai":
-            msgs.append(AIMessage(msg["message"]))
-    template = ChatPromptTemplate.from_messages(
-        [SystemMessage(GUIDANCE_TEMPLATE)] + msgs
-    )
+            msgs.append(f"Question: {msg['message']}")
+    msgs_str = "\n".join(msgs)
+    template = ChatPromptTemplate.from_template(GUIDANCE_TEMPLATE)
     prompt = await template.ainvoke(
-        input={
-            "tools": render_text_description(tools),
-        }
+        input={"tools": render_text_description(tools), "discussion": msgs_str}
     )
     model = ChatOpenAI(
         temperature=0,
@@ -502,14 +532,15 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
     try:
         async with get_checkpointer() as saver:
             state_graph = StateGraph(SupervisorState)
-
+            state_graph.add_node(MODERATION_NODE, moderation_agent)
             state_graph.add_node(SUPERVISOR_NODE, supervisor_agent)
             state_graph.add_node(DISCREPANCY_NODE, discrepancy_agent)
             state_graph.add_node(GUIDANCE_NODE, guidance_agent)
             state_graph.add_node(FEEDBACK_NODE, feedback_agent)
             state_graph.add_node(GRADING_NODE, grading_agent)
             state_graph.add_node(FINISH_NODE, finish)
-            state_graph.add_edge(START, SUPERVISOR_NODE)
+            state_graph.add_edge(START, MODERATION_NODE)
+            state_graph.add_edge(MODERATION_NODE, SUPERVISOR_NODE)
             state_graph.add_conditional_edges(SUPERVISOR_NODE, next_step)
             state_graph.add_edge(DISCREPANCY_NODE, SUPERVISOR_NODE)
             state_graph.add_edge(GUIDANCE_NODE, SUPERVISOR_NODE)

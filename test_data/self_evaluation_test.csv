@@ -1,0 +1,21 @@
+user_id,skill_name,claimed_level,actual_responses,expected_validation,test_scenario,notes
+1,Python,7,I teach Python at university and wrote 3 books,VALID,Expert claim with evidence,Should validate educator level
+2,Docker,5,I maintain prod containers daily,VALID,Production maintenance claim,Should validate with follow-up questions
+3,Kubernetes,6,I can set up K8s from scratch,QUESTIONABLE,Production setup claim,Needs deeper validation
+4,React,4,I built a todo app once,INVALID,Overestimated skill level,Practice level doesn't match claim
+5,AWS,3,I understand EC2 and S3 concepts,VALID,Informed details level,Matches theoretical knowledge
+6,PostgreSQL,2,I know it's a database,VALID,Basic understanding,Appropriate for informed basics
+7,Machine Learning,1,Never worked with ML,VALID,Honest self-assessment,No knowledge claimed
+8,JavaScript,6,I know console.log,INVALID,Severe overestimation,Basic knowledge vs expert claim
+9,Git,4,I use git daily for commits and merges,VALID,Practice level usage,Matches daily practice
+10,Linux,5,I manage prod servers and troubleshoot,VALID,Production maintenance,Operational experience
+11,Node.js,3,I understand event loop and async,VALID,Detailed knowledge,Theoretical understanding
+12,MongoDB,7,I'm a MongoDB consultant,QUESTIONABLE,Expert claim,Needs validation of consulting work
+13,Redis,2,I heard it's for caching,VALID,Basic awareness,Appropriate basic level
+14,GraphQL,4,Built a simple API,VALID,Practice level,Hands-on experience
+15,TypeScript,1,What is TypeScript?,VALID,No knowledge,Honest assessment
+16,Microservices,6,I architect microservice systems,QUESTIONABLE,Architecture claim,Needs validation of design experience
+17,DevOps,5,I maintain CI/CD pipelines,VALID,Production maintenance,Operational responsibility
+18,Testing,3,I understand unit vs integration tests,VALID,Conceptual knowledge,Theory understanding
+19,Security,7,I conduct security audits,QUESTIONABLE,Expert security claim,High-stakes validation needed
+20,Agile,4,I participate in sprints and standups,VALID,Practice participation,Team involvement
