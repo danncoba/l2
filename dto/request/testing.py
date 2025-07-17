@@ -11,7 +11,7 @@ class MessagesRequestBase(BaseModel):
 
 
 class DiscrepancyValueBase(BaseModel):
-    grade_id: int
+    grade_id: Optional[int] = None
     skill_id: int
     user_id: int
 

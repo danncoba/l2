@@ -226,22 +226,20 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
     msgs = []
     for msg in state["chat_messages"]:
         if msg["role"] == "human":
-            answer = f"Answer: {msg["message"]}"
-            msgs.append(answer)
+            msgs.append(("human", msg["message"]))
         elif msg["role"] == "ai":
-            question = f"Question: {msg["message"]}"
-            msgs.append(question)
-    prompt_msgs = "\n".join(msgs)
+            msgs.append(("ai", msg["message"]))
     prompt_id = "cmd4dt6xl000fyrs57cer5egx"
     discrepancy_prompt = get_prompt_from_registry(prompt_id)
-    prompt_template = ChatPromptTemplate.from_template(discrepancy_prompt["value"])
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", discrepancy_prompt["value"])] + msgs
+    )
     prompt = await prompt_template.ainvoke(
         input={
             "tools": render_text_description(tools),
             "user_id": state["discrepancy"].user_id,
             "skill_id": state["discrepancy"].skill_id,
             "current_grade": state["discrepancy"].grade_id,
-            "discussion": prompt_msgs,
         }
     )
     print(f"\n\nDISCREPANCY AGAIN PROMPT\n {prompt}")

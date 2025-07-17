@@ -24,11 +24,11 @@ async def find_current_grade_for_user_and_skill(
 ) -> UserSkills:
     """
     Utilize to find current expertise and grading level with user id and skill_id
-    :param user_id: users id
+    :param user_id: user id
     :type user_id: int
     :param skill_id: skill id
     :type skill_id: int
-    :return:
+    :return: returns user skill grading. If the grade is None that means it's not set up
     :rtype: UserSkills: UserSkills object with all the fields
     """
     async for session in get_session():
