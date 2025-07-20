@@ -85,9 +85,25 @@ async def get_days_difference(eval_date: date, today_date: date) -> int:
     as parameters.
 
     :param eval_date: The evaluation date to compare.
-    :param today_date: The current date used for comparison.
+    :param today_date: The current date is used for comparison.
     :return: The difference in days as an integer.
-    :rtype int: number of days since between eval date and today date
+    :rtype int: Number of days since between eval date and today date
     """
     delta = today_date - eval_date
     return delta.days
+
+
+async def get_validator_questions_per_difficulty(skill_id: int, difficulty_level: int) -> str:
+    """
+    Retrieve the questions for matrix validation based on skill
+    and level of difficulty
+
+    Async function that takes the params of skill and level of difficulty and
+    retrieves available questions for that skill and level of difficult
+
+    :param skill_id:
+    :param difficulty_level:
+    :return: return the questions for validating user experience matrix
+    """
+    async for session in get_session():
+        pass

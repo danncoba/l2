@@ -21,7 +21,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END, add_messages
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
-from langgraph.types import interrupt
+from langgraph.types import interrupt, RetryPolicy
 from langtrace_python_sdk import get_prompt_from_registry
 from pydantic import BaseModel
 
@@ -246,6 +246,8 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
     logger.info(f"\n\nDISCREPANCY AGAIN PROMPT\n {prompt}")
     agent = create_react_agent(model=model, tools=tools)
     response = await agent.ainvoke(prompt)
+    # if not response.content.startswith("Observe: "):
+    #     raise ValueError("Not proper formatted response")
     print(f"\n\nDISCREPANCY AGAIN RESPONSE\n {response}")
     logger.info(f"\n\nDISCREPANCY AGAIN RESPONSE\n {response}")
     msg = []
@@ -509,6 +511,8 @@ async def guidance_agent(state: SupervisorState) -> SupervisorState:
     print(f"\n\nGUIDANCE AGENT PROMPT\n {prompt}")
     agent = create_react_agent(model=model, tools=tools)
     agent_response = await agent.ainvoke(prompt)
+    if not agent_response["messages"][-1].content.startswith("Observe: "):
+        raise ValueError("Guidance Agent invalid response formatting")
     print(f"\n\nGUIDANCE AGENT RESPONSE\n {agent_response}")
     msg = AgentMessage(
         message=agent_response["messages"][-1],
@@ -548,9 +552,19 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
         async with get_checkpointer() as saver:
             state_graph = StateGraph(SupervisorState)
             # state_graph.add_node(MODERATION_NODE, moderation_agent)
-            state_graph.add_node(SUPERVISOR_NODE, supervisor_agent)
-            state_graph.add_node(DISCREPANCY_NODE, discrepancy_agent)
-            state_graph.add_node(GUIDANCE_NODE, guidance_agent)
+            state_graph.add_node(
+                SUPERVISOR_NODE,
+                supervisor_agent,
+                retry_policy=RetryPolicy(max_attempts=3),
+            )
+            state_graph.add_node(
+                DISCREPANCY_NODE,
+                discrepancy_agent,
+                retry_policy=RetryPolicy(max_attempts=3),
+            )
+            state_graph.add_node(
+                GUIDANCE_NODE, guidance_agent, retry_policy=RetryPolicy(max_attempts=3)
+            )
             state_graph.add_node(FEEDBACK_NODE, feedback_agent)
             state_graph.add_node(GRADING_NODE, grading_agent)
             state_graph.add_node(FINISH_NODE, finish)

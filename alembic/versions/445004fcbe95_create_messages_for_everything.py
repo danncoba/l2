@@ -21,12 +21,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.create_table(
-        "messages",
-        sa.Column("id", sa.BigInteger, nullable=False),
+        "message_groups",
+        sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
+        sa.Column("user_id", sa.BigInteger, nullable=False),
+        sa.Column("group", sa.String(100), nullable=False),
     )
-    pass
+    op.create_table(
+        "messages",
+        sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
+        sa.Column("message_group_id", sa.BigInteger, nullable=False),
+        sa.Column("user_id", sa.BigInteger, nullable=False),
+        sa.Column("message", sa.Text, nullable=False),
+    )
 
 
 def downgrade() -> None:
-    """Downgrade schema."""
-    pass
+    op.drop_table("messages")
+    op.drop_table("message_groups")
