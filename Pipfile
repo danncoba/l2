@@ -37,6 +37,7 @@ traceloop-sdk = "*"
 pgvector = "*"
 litellm = "*"
 langtrace-python-sdk = "*"
+gradio = "*"
 
 [dev-packages]
 pip = "*"

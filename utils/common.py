@@ -1,8 +1,15 @@
 from typing import List
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, BaseMessage
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
+    BaseMessage,
+    ToolMessage,
+)
 
 from agents.dto import AgentMessage, ChatMessage
+from dto.request.testing import MessagesRequestBase
 from dto.response.matrix_chats import MessageDict
 
 
@@ -51,3 +58,13 @@ def convert_chat_messages_to_llm_message(
         elif chat_msg.role == "system":
             langchain_msgs.append(SystemMessage(chat_msg.content))
     return langchain_msgs
+
+
+def convert_msg_request_to_llm_messages(
+    messages: List[MessagesRequestBase],
+) -> List[AIMessage | HumanMessage | ToolMessage | SystemMessage]:
+    msgs = [
+        AIMessage(msg.message) if msg.role == "ai" else HumanMessage(msg.message)
+        for msg in messages
+    ]
+    return msgs

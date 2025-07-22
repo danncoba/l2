@@ -267,3 +267,21 @@ class TestSupervisorWelcome(AsyncAttrs, SQLModel, table=True):
     )
     message: str = Field(sa_column=Column(Text, nullable=False))
     supervisor_matrix: TestSupervisorMatrix = Relationship(back_populates="welcome_msg")
+
+
+class MatrixSkillKnowledgeBase(SQLModel, table=True):
+    __tablename__ = "matrix_skill_knowledgebase"
+    id: int = Field(sa_column=Column(BigInteger, primary_key=True, nullable=False))
+    skill_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("skills.id"), nullable=False)
+    )
+    difficulty_level: int = Field(sa_column=Column(Integer, nullable=False))
+    question: str = Field(sa_column=Column(Text, nullable=False))
+    answer: str = Field(sa_column=Column(Text, nullable=False))
+    options: str = Field(sa_column=Column(JSON, nullable=True))
+    question_type: str = Field(sa_column=Column(String, nullable=False))
+    is_code_question: bool = Field(sa_column=Column(Boolean, nullable=False))
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    updated_at: datetime = Field()

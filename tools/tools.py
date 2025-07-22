@@ -2,7 +2,8 @@ from datetime import date
 from typing import List, Any
 
 from db.db import get_session
-from db.models import Grade, UserSkills
+from db.models import Grade, UserSkills, MatrixSkillKnowledgeBase
+from dto.inner.matrix_validations import MatrixValidationsQAResponse
 from dto.response.grades import GradeResponseBase
 from service.service import BaseService
 
@@ -93,7 +94,9 @@ async def get_days_difference(eval_date: date, today_date: date) -> int:
     return delta.days
 
 
-async def get_validator_questions_per_difficulty(skill_id: int, difficulty_level: int) -> str:
+async def get_validator_questions_per_difficulty(
+    skill_id: int, difficulty_level: int
+) -> MatrixValidationsQAResponse:
     """
     Retrieve the questions for matrix validation based on skill
     and level of difficulty
@@ -106,4 +109,13 @@ async def get_validator_questions_per_difficulty(skill_id: int, difficulty_level
     :return: return the questions for validating user experience matrix
     """
     async for session in get_session():
-        pass
+        service: BaseService[MatrixSkillKnowledgeBase, int, Any, Any] = BaseService(
+            MatrixSkillKnowledgeBase, session
+        )
+        filters = {
+            "skill_id": skill_id,
+            "difficulty_level": difficulty_level,
+        }
+        all_services = await service.list_all(filters=filters)
+
+        return all_services

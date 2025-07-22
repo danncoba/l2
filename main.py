@@ -11,6 +11,7 @@ from routers.configs import config_router
 from routers.grades import grades_router
 from routers.matrix import matrix_router
 from routers.matrix_chats import matrix_chats_router
+from routers.matrix_validations import matrix_validations_router
 from routers.notifications import notifications_router
 from routers.profile import profile_router
 from routers.skills import skills_router
@@ -64,6 +65,7 @@ app.include_router(matrix_router)
 app.include_router(matrix_chats_router)
 app.include_router(analytics_router)
 app.include_router(testing_router)
+app.include_router(matrix_validations_router)
 
 # Instrument FastAPI with OpenTelemetry
 instrument_fastapi(app)
