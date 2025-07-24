@@ -278,7 +278,7 @@ class MatrixSkillKnowledgeBase(SQLModel, table=True):
     )
     difficulty_level: int = Field(sa_column=Column(Integer, nullable=False))
     question: str = Field(sa_column=Column(Text, nullable=False))
-    answer: str = Field(sa_column=Column(Text, nullable=False))
+    answer: str = Field(sa_column=Column(Text, nullable=True))
     options: str = Field(sa_column=Column(JSONB(none_as_null=True), nullable=True))
     rules: str = Field(sa_column=Column(Text, nullable=False))
     question_type: str = Field(sa_column=Column(String, nullable=False))
