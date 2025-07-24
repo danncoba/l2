@@ -99,14 +99,15 @@ async def get_validator_questions_per_difficulty(
 ) -> MatrixValidationsQAResponse:
     """
     Retrieve the questions for matrix validation based on skill
-    and level of difficulty
+    and level of difficulty, as well as matrix validations guidance and rules
 
     Async function that takes the params of skill and level of difficulty and
-    retrieves available questions for that skill and level of difficult
+    retrieves available questions for that skill and level of difficult as well as rules
+    for this specific question
 
     :param skill_id:
     :param difficulty_level:
-    :return: return the questions for validating user experience matrix
+    :return: return the questions for validating user experience matrix as well as rules
     """
     async for session in get_session():
         service: BaseService[MatrixSkillKnowledgeBase, int, Any, Any] = BaseService(

@@ -38,6 +38,7 @@ pgvector = "*"
 litellm = "*"
 langtrace-python-sdk = "*"
 gradio = "*"
+eventlet = "*"
 
 [dev-packages]
 pip = "*"

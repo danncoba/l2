@@ -11,7 +11,7 @@ from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from langgraph.graph import add_messages
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import create_react_agent, ToolNode
 from langgraph.types import RetryPolicy
 from langtrace_python_sdk import get_prompt_from_registry
 from sqlalchemy.sql.annotation import Annotated
@@ -205,7 +205,10 @@ async def grading_agent(state: MatrixValidationState):
     print("RESSSSSSSSSSSS")
     pprint.pprint(response)
     is_valid_response = "messages" in response and len(response["messages"]) > 0
-    if not is_valid_response or not FINAL_ANSWER_STR in response["messages"][-1].content:
+    if (
+        not is_valid_response
+        or not FINAL_ANSWER_STR in response["messages"][-1].content
+    ):
         pprint.pprint(response["messages"][-1])
         raise LLMFormatError("Invalid answer format")
     pprint.pprint(response, indent=4)

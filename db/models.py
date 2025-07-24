@@ -5,6 +5,7 @@ from typing import Optional, List
 
 from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import String, Boolean, BigInteger, Integer, Text, DateTime, UUID, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlmodel import SQLModel, Field, Column, Relationship, ForeignKey
 
@@ -278,7 +279,8 @@ class MatrixSkillKnowledgeBase(SQLModel, table=True):
     difficulty_level: int = Field(sa_column=Column(Integer, nullable=False))
     question: str = Field(sa_column=Column(Text, nullable=False))
     answer: str = Field(sa_column=Column(Text, nullable=False))
-    options: str = Field(sa_column=Column(JSON, nullable=True))
+    options: str = Field(sa_column=Column(JSONB(none_as_null=True), nullable=True))
+    rules: str = Field(sa_column=Column(Text, nullable=False))
     question_type: str = Field(sa_column=Column(String, nullable=False))
     is_code_question: bool = Field(sa_column=Column(Boolean, nullable=False))
     created_at: datetime = Field(
