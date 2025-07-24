@@ -95,28 +95,19 @@ async def get_days_difference(eval_date: date, today_date: date) -> int:
 
 
 async def get_validator_questions_per_difficulty(
-    skill_id: int, difficulty_level: int
-) -> MatrixValidationsQAResponse:
+    question_id: int,
+) -> str:
     """
-    Retrieve the questions for matrix validation based on skill
-    and level of difficulty, as well as matrix validations guidance and rules
+    Retrieve the questions for matrix validation based the question id
+    Retrieves the data in the json returning question and accurate answer
 
-    Async function that takes the params of skill and level of difficulty and
-    retrieves available questions for that skill and level of difficult as well as rules
-    for this specific question
-
-    :param skill_id:
-    :param difficulty_level:
-    :return: return the questions for validating user experience matrix as well as rules
+    :param question_id:
+    :return: return the question based on it's id
     """
     async for session in get_session():
         service: BaseService[MatrixSkillKnowledgeBase, int, Any, Any] = BaseService(
             MatrixSkillKnowledgeBase, session
         )
-        filters = {
-            "skill_id": skill_id,
-            "difficulty_level": difficulty_level,
-        }
-        all_services = await service.list_all(filters=filters)
+        knowledge_base = await service.get(question_id)
 
-        return all_services
+        return knowledge_base.model_dump_json()

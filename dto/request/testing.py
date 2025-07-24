@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class MessagesRequestBase(BaseModel):
-    role: Literal["human", "ai", "admin"]
+    role: Literal["human", "ai", "admin", "tool"]
     message: str = Field(
         max_length=10000, description="Message send to the agent", min_length=1
     )

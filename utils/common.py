@@ -1,3 +1,4 @@
+import uuid
 from typing import List
 
 from langchain_core.messages import (
@@ -63,8 +64,12 @@ def convert_chat_messages_to_llm_message(
 def convert_msg_request_to_llm_messages(
     messages: List[MessagesRequestBase],
 ) -> List[AIMessage | HumanMessage | ToolMessage | SystemMessage]:
-    msgs = [
-        AIMessage(msg.message) if msg.role == "ai" else HumanMessage(msg.message)
-        for msg in messages
-    ]
+    msgs = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage):
+            msgs.append(ToolMessage(content=msg, tool_call_id=uuid.uuid4()))
+        elif msg.role == "ai":
+            msgs.append(AIMessage(msg.message))
+        else:
+            msgs.append(HumanMessage(msg.message))
     return msgs

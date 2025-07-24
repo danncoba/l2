@@ -18,23 +18,23 @@ class UserKnowledgeBaseResponse(BaseModel):
     question_type: str
     is_code_question: bool
     created_at: datetime
-    
-    @field_validator('options', mode='before')
+
+    @field_validator("options", mode="before")
     @classmethod
     def hide_correct_answers(cls, v, info):
         if v is None:
             return v
-        question_type = info.data.get('question_type')
-        if question_type in ['multi', 'single']:
+        question_type = info.data.get("question_type")
+        if question_type in ["multi", "single"]:
             # Remove is_correct from options for multi/single choice
             return [{"option": opt.get("option")} for opt in v]
         return v
-    
-    @field_validator('answer', mode='before')
+
+    @field_validator("answer", mode="before")
     @classmethod
     def hide_answer(cls, v, info):
-        question_type = info.data.get('question_type')
-        if question_type == 'input':
+        question_type = info.data.get("question_type")
+        if question_type == "input":
             # Hide answer for input questions
             return None
         return v

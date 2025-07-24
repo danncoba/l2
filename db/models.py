@@ -292,10 +292,13 @@ class MatrixSkillKnowledgeBase(SQLModel, table=True):
     created_at: datetime = Field(
         sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
     )
-    updated_at: datetime = Field(sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now))
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
     validation_questions: List["UserValidationQuestions"] = Relationship(
         back_populates="knowledge_base"
     )
+
 
 class UserValidationQuestions(AsyncAttrs, SQLModel, table=True):
     __tablename__ = "user_validation_questions"
@@ -317,4 +320,6 @@ class UserValidationQuestions(AsyncAttrs, SQLModel, table=True):
 
     user: User = Relationship(back_populates="validation_questions")
     skill: Skill = Relationship(back_populates="validation_questions")
-    knowledge_base: MatrixSkillKnowledgeBase = Relationship(back_populates="validation_questions")
+    knowledge_base: MatrixSkillKnowledgeBase = Relationship(
+        back_populates="validation_questions"
+    )

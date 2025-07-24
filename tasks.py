@@ -316,18 +316,44 @@ async def generate_validation_questions_for_users():
         for row in results:
             user_id, email, skill_id, grade_id, difficulty_level = row
 
-            # Get 10 random questions for this skill and difficulty level
+            # Check if user already has 10 questions for this skill
+            existing_count_statement = text(
+                """
+                SELECT COUNT(*) FROM user_validation_questions 
+                WHERE user_id = :user_id AND skill_id = :skill_id
+            """
+            )
+
+            existing_result = await session.execute(
+                existing_count_statement, {"user_id": user_id, "skill_id": skill_id}
+            )
+
+            existing_count = existing_result.scalar()
+
+            if existing_count >= 10:
+                print(
+                    f"User {email} already has {existing_count} questions for skill {skill_id}, skipping"
+                )
+                continue
+
+            questions_needed = 10 - existing_count
+
+            # Get random questions for this skill and difficulty level
             questions_statement = text(
                 """
                 SELECT id FROM matrix_skill_knowledgebase 
                 WHERE skill_id = :skill_id AND difficulty_level = :difficulty_level
-                ORDER BY RANDOM() LIMIT 10
+                ORDER BY RANDOM() LIMIT :limit
             """
             )
 
             questions_result = await session.execute(
                 questions_statement,
-                {"skill_id": skill_id, "difficulty_level": difficulty_level},
+                {
+                    "skill_id": skill_id,
+                    "difficulty_level": difficulty_level,
+                    "limit": questions_needed,
+                },
             )
 
             questions = questions_result.fetchall()

@@ -1,9 +1,11 @@
 import os
 import pprint
+import uuid
 from contextlib import asynccontextmanager
 from typing import TypedDict, AsyncGenerator, Any, List
 
 from dotenv import load_dotenv
+from langchain_core.messages import ToolCall, AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import StructuredTool, render_text_description
 from langchain_openai import ChatOpenAI
@@ -36,9 +38,22 @@ class LLMFormatError(Exception):
         super().__init__(message)
 
 
+tools = [
+    # StructuredTool.from_function(
+    #     name="guidance_tool",
+    #     func=guidance_tool,
+    #     coroutine=guidance_tool,
+    # ),
+    StructuredTool.from_function(
+        name="get_validator_questions_per_difficulty",
+        func=get_validator_questions_per_difficulty,
+        coroutine=get_validator_questions_per_difficulty,
+    ),
+]
+
+
 class MatrixValidationState(TypedDict):
-    skill_id: int
-    difficulty: int
+    question_id: int
     inner_messages: Annotated[list, add_messages]
     intermediate_steps: Annotated[list, add_messages]
     messages: Annotated[list, add_messages]
@@ -48,10 +63,12 @@ def parse_discussion(messages: List[MessagesRequestBase]) -> str:
     full_discussion = ""
     print(f"MESSAGES {messages}")
     for msg in messages:
+        if isinstance(msg, ToolMessage):
+            continue
         if msg.role == "ai":
-            full_discussion += f"\nAI: {msg.message}\n"
+            full_discussion += f"\nQuestion: {msg.message}\n"
         elif msg.role == "human":
-            full_discussion += f"\nUser: {msg.message}\n"
+            full_discussion += f"\nResponse: {msg.message}\n"
 
     return full_discussion
 
@@ -155,11 +172,24 @@ async def define_question_parts(state: MatrixValidationState) -> MatrixValidatio
     pprint.pprint(response, indent=4)
     print(f"MESSAGES QUESTION PARTS {state["messages"]}")
     return {
-        "skill_id": state["skill_id"],
-        "difficulty": state["difficulty"],
+        "question_id": state["question_id"],
         "messages": state["messages"],
         "inner_messages": [response["messages"][-1].content],
         "intermediate_steps": state["intermediate_steps"],
+    }
+
+
+async def prepare_tool(state: MatrixValidationState) -> MatrixValidationState:
+    question_tool = ToolCall(
+        name="get_validator_questions_per_difficulty",
+        args={"question_id": state["question_id"]},
+        id=str(uuid.uuid4()),
+    )
+    return {
+        "question_id": state["question_id"],
+        "messages": [AIMessage(content="", tool_calls=[question_tool])],
+        "inner_messages": [],
+        "intermediate_steps": [],
     }
 
 
@@ -171,29 +201,18 @@ async def grading_agent(state: MatrixValidationState):
         temperature=0,
         max_tokens=300,
     )
-    tools = [
-        StructuredTool.from_function(
-            name="guidance_tool",
-            func=guidance_tool,
-            coroutine=guidance_tool,
-        ),
-        StructuredTool.from_function(
-            name="get_validator_questions_per_difficulty",
-            func=get_validator_questions_per_difficulty,
-            coroutine=get_validator_questions_per_difficulty,
-        ),
-    ]
     prompt_id = "cmde27c69009eyrs5rg0xgdro"
     grading_prompt = get_prompt_from_registry(prompt_id)
     print(f"STATE MESSAGES : {state["messages"]}")
     msgs = convert_msg_request_to_llm_messages(state["messages"])
     discussion = parse_discussion(state["messages"])
     prompt_template = ChatPromptTemplate.from_messages(
-        [("system", grading_prompt["value"])] + msgs
+        [("system", grading_prompt["value"])]
     )
     print(f"DISCUSSION {discussion}")
     prompt = await prompt_template.ainvoke(
         {
+            "question_id": state["question_id"],
             "tools": render_text_description(tools),
             "tool_names": ",".join([tool.name for tool in tools]),
             "agent_scratchpad": "\n".join(state["intermediate_steps"]),
@@ -213,8 +232,7 @@ async def grading_agent(state: MatrixValidationState):
         raise LLMFormatError("Invalid answer format")
     pprint.pprint(response, indent=4)
     return {
-        "skill_id": state["skill_id"],
-        "difficulty": state["difficulty"],
+        "question_id": state["question_id"],
         "messages": [response["messages"][-1]],
         "inner_messages": [],
         "intermediate_steps": [],
@@ -226,14 +244,15 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
     try:
         async with get_checkpointer() as saver:
             state_graph = StateGraph(MatrixValidationState)
-            # state_graph.add_node(MODERATION_NODE, moderation_agent)
-            # state_graph.add_node("split", define_question_parts)
+            # state_graph.add_node("prepare_tool", prepare_tool)
+            # state_graph.add_node("tools", ToolNode(tools))
             state_graph.add_node(
                 "grading",
                 grading_agent,
                 retry_policy=RetryPolicy(max_attempts=3),
             )
-            # state_graph.add_edge(START, "split")
+            # state_graph.add_edge(START, "prepare_tool")
+            # state_graph.add_edge("prepare_tool", "tools")
             state_graph.add_edge(START, "grading")
             state_graph.add_edge("grading", END)
 
