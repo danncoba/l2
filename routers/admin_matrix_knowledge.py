@@ -5,7 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.db import get_session
 from db.models import MatrixSkillKnowledgeBase, User
-from dto.request.matrix_skill_knowledge import MatrixSkillKnowledgeBaseRequest, MatrixSkillKnowledgeBaseUpdate
+from dto.request.matrix_skill_knowledge import (
+    MatrixSkillKnowledgeBaseRequest,
+    MatrixSkillKnowledgeBaseUpdate,
+)
 from dto.response.matrix_skill_knowledge import MatrixSkillKnowledgeBaseResponse
 from service.service import BaseService
 from security import get_current_user, admin_required
@@ -14,7 +17,7 @@ from utils.common import common_parameters
 admin_matrix_knowledge_router = APIRouter(
     prefix="/api/v1/admin/matrix-knowledge",
     tags=["Admin Matrix Knowledge"],
-    dependencies=[Depends(admin_required)]
+    dependencies=[Depends(admin_required)],
 )
 
 
@@ -51,7 +54,9 @@ async def matrix_knowledge_filters(
     return filters
 
 
-@admin_matrix_knowledge_router.get("", response_model=List[MatrixSkillKnowledgeBaseResponse])
+@admin_matrix_knowledge_router.get(
+    "", response_model=List[MatrixSkillKnowledgeBaseResponse]
+)
 async def get_all_matrix_knowledge(
     session: Annotated[AsyncSession, Depends(get_session)],
     common: Annotated[dict, Depends(common_parameters)],
@@ -60,14 +65,14 @@ async def get_all_matrix_knowledge(
 ) -> List[MatrixSkillKnowledgeBaseResponse]:
     service = BaseService(MatrixSkillKnowledgeBase, session)
     items = await service.list_all(
-        filters=filters,
-        limit=common["limit"], 
-        offset=common["offset"]
+        filters=filters, limit=common["limit"], offset=common["offset"]
     )
     return [MatrixSkillKnowledgeBaseResponse(**item.model_dump()) for item in items]
 
 
-@admin_matrix_knowledge_router.get("/{knowledge_id}", response_model=MatrixSkillKnowledgeBaseResponse)
+@admin_matrix_knowledge_router.get(
+    "/{knowledge_id}", response_model=MatrixSkillKnowledgeBaseResponse
+)
 async def get_matrix_knowledge(
     knowledge_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -89,7 +94,9 @@ async def create_matrix_knowledge(
     return MatrixSkillKnowledgeBaseResponse(**item.model_dump())
 
 
-@admin_matrix_knowledge_router.put("/{knowledge_id}", response_model=MatrixSkillKnowledgeBaseResponse)
+@admin_matrix_knowledge_router.put(
+    "/{knowledge_id}", response_model=MatrixSkillKnowledgeBaseResponse
+)
 async def update_matrix_knowledge(
     knowledge_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],

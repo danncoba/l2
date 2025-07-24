@@ -18,6 +18,7 @@ from routers.profile import profile_router
 from routers.skills import skills_router
 from routers.testing import testing_router
 from routers.users import users_router
+from routers.user_validation_questions import user_validation_questions_router
 
 from logger import logger
 from telemetry import setup_telemetry, instrument_fastapi
@@ -57,6 +58,7 @@ app.add_middleware(
 app.add_middleware(TraceIdMiddleware)
 
 app.include_router(admin_matrix_knowledge_router)
+app.include_router(user_validation_questions_router)
 app.include_router(profile_router)
 app.include_router(users_router)
 app.include_router(grades_router)

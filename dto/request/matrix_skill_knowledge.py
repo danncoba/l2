@@ -17,20 +17,24 @@ class MatrixSkillKnowledgeBaseRequest(BaseModel):
     question_type: str
     is_code_question: bool
 
-    @field_validator('options')
+    @field_validator("options")
     @classmethod
     def validate_options(cls, v, info):
         if v is None:
             return v
-        
-        question_type = info.data.get('question_type')
+
+        question_type = info.data.get("question_type")
         correct_count = sum(1 for opt in v if opt.is_correct)
-        
-        if question_type == 'single' and correct_count != 1:
-            raise ValueError('Single choice questions must have exactly one correct answer')
-        elif question_type == 'multi' and correct_count < 1:
-            raise ValueError('Multi choice questions must have at least one correct answer')
-        
+
+        if question_type == "single" and correct_count != 1:
+            raise ValueError(
+                "Single choice questions must have exactly one correct answer"
+            )
+        elif question_type == "multi" and correct_count < 1:
+            raise ValueError(
+                "Multi choice questions must have at least one correct answer"
+            )
+
         return v
 
 

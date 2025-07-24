@@ -300,47 +300,55 @@ async def create_matrix_validation_questions(
 async def generate_validation_questions_for_users():
     async for session in get_session():
         validation_service = BaseService(UserValidationQuestions, session)
-        
+
         # Get users with populated skills
-        statement = text("""
+        statement = text(
+            """
             SELECT DISTINCT u.id, u.email, us.skill_id, us.grade_id, g.value as difficulty_level
             FROM users u
             JOIN users_skills us ON u.id = us.user_id
             JOIN grades g ON us.grade_id = g.id
-        """)
-        
+        """
+        )
+
         results = await session.execute(statement)
-        
+
         for row in results:
             user_id, email, skill_id, grade_id, difficulty_level = row
-            
+
             # Get 10 random questions for this skill and difficulty level
-            questions_statement = text("""
+            questions_statement = text(
+                """
                 SELECT id FROM matrix_skill_knowledgebase 
                 WHERE skill_id = :skill_id AND difficulty_level = :difficulty_level
                 ORDER BY RANDOM() LIMIT 10
-            """)
-            
-            questions_result = await session.execute(
-                questions_statement, 
-                {"skill_id": skill_id, "difficulty_level": difficulty_level}
+            """
             )
-            
+
+            questions_result = await session.execute(
+                questions_statement,
+                {"skill_id": skill_id, "difficulty_level": difficulty_level},
+            )
+
             questions = questions_result.fetchall()
-            
+
             # Save questions to UserValidationQuestions
             validation_records = []
             for question_row in questions:
-                validation_records.append(UserValidationQuestions(
-                    user_id=user_id,
-                    skill_id=skill_id,
-                    knowledge_base_id=question_row[0],
-                    created_at=datetime.now()
-                ))
-            
+                validation_records.append(
+                    UserValidationQuestions(
+                        user_id=user_id,
+                        skill_id=skill_id,
+                        knowledge_base_id=question_row[0],
+                        created_at=datetime.now(),
+                    )
+                )
+
             if validation_records:
                 await validation_service.create_many(validation_records)
-                print(f"Saved {len(validation_records)} questions for user {email}, skill {skill_id}, level {difficulty_level}")
+                print(
+                    f"Saved {len(validation_records)} questions for user {email}, skill {skill_id}, level {difficulty_level}"
+                )
 
 
 @shared_task

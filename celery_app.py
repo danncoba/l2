@@ -28,14 +28,14 @@ app.conf.update(
         #         {"phone_number": "1234567890", "message": "Scheduled SMS notification"},
         #     ),
         # },
-        "send-test-supervisor-matrix-validations-every-minute": {
-            "task": "tasks.generate_matrix_validation_questions",
-            "schedule": crontab(minute="*"),  # Alternative: using crontab every minute
-            "args": (),
-        },
+        # "send-test-supervisor-matrix-validations-every-minute": {
+        #     "task": "tasks.generate_matrix_validation_questions",
+        #     "schedule": crontab(minute="*"),  # Alternative: using crontab every minute
+        #     "args": (),
+        # },
         "generate-user-validation-questions-hourly": {
             "task": "tasks.generate_user_validation_questions",
-            "schedule": crontab(minute=0),  # Run every hour at minute 0
+            "schedule": crontab(minute="*"),  # Run every hour at minute 0
             "args": (),
         },
     },
