@@ -33,6 +33,11 @@ app.conf.update(
             "schedule": crontab(minute="*"),  # Alternative: using crontab every minute
             "args": (),
         },
+        "generate-user-validation-questions-hourly": {
+            "task": "tasks.generate_user_validation_questions",
+            "schedule": crontab(minute=0),  # Run every hour at minute 0
+            "args": (),
+        },
     },
 )
 

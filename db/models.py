@@ -40,6 +40,7 @@ class User(AsyncAttrs, SQLModel, table=True):
     supervisor_matrix: List["TestSupervisorMatrix"] = Relationship(
         back_populates="user"
     )
+    validation_questions: List["UserValidationQuestions"] = Relationship(back_populates="user")
 
 
 class Grade(SQLModel, table=True):
@@ -287,3 +288,24 @@ class MatrixSkillKnowledgeBase(SQLModel, table=True):
         sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
     )
     updated_at: datetime = Field()
+
+
+class UserValidationQuestions(AsyncAttrs, SQLModel, table=True):
+    __tablename__ = "user_validation_questions"
+    id: int = Field(sa_column=Column(BigInteger, primary_key=True, autoincrement=True))
+    user_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    )
+    skill_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("skills.id"), nullable=False)
+    )
+    knowledge_base_id: int = Field(
+        sa_column=Column(BigInteger, ForeignKey("matrix_skill_knowledgebase.id"), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(), nullable=False, insert_default=datetime.now)
+    )
+    
+    user: User = Relationship(back_populates="validation_questions")
+    skill: Skill = Relationship()
+    knowledge_base: MatrixSkillKnowledgeBase = Relationship()
