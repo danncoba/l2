@@ -1,11 +1,10 @@
 import os
 import pprint
-import uuid
 from contextlib import asynccontextmanager
-from typing import TypedDict, AsyncGenerator, Any, List
+from typing import TypedDict, AsyncGenerator, Any, List, Optional, Literal
 
 from dotenv import load_dotenv
-from langchain_core.messages import ToolCall, AIMessage, ToolMessage
+from langchain_core.messages import ToolMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import StructuredTool, render_text_description
 from langchain_openai import ChatOpenAI
@@ -13,7 +12,7 @@ from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from langgraph.graph import add_messages
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent, ToolNode
+from langgraph.prebuilt import create_react_agent
 from langgraph.types import RetryPolicy
 from langtrace_python_sdk import get_prompt_from_registry
 from sqlalchemy.sql.annotation import Annotated
@@ -39,11 +38,6 @@ class LLMFormatError(Exception):
 
 
 tools = [
-    # StructuredTool.from_function(
-    #     name="guidance_tool",
-    #     func=guidance_tool,
-    #     coroutine=guidance_tool,
-    # ),
     StructuredTool.from_function(
         name="get_validator_questions_per_difficulty",
         func=get_validator_questions_per_difficulty,
@@ -54,16 +48,20 @@ tools = [
 
 class MatrixValidationState(TypedDict):
     question_id: int
+    question: str
+    answer: str
+    rules: Optional[str] = None
     inner_messages: Annotated[list, add_messages]
     intermediate_steps: Annotated[list, add_messages]
     messages: Annotated[list, add_messages]
+    guidance_amount: int
 
 
 def parse_discussion(messages: List[MessagesRequestBase]) -> str:
     full_discussion = ""
     print(f"MESSAGES {messages}")
     for msg in messages:
-        if isinstance(msg, ToolMessage):
+        if isinstance(msg, ToolMessage) or isinstance(msg, AIMessage):
             continue
         if msg.role == "ai":
             full_discussion += f"\nQuestion: {msg.message}\n"
@@ -71,24 +69,6 @@ def parse_discussion(messages: List[MessagesRequestBase]) -> str:
             full_discussion += f"\nResponse: {msg.message}\n"
 
     return full_discussion
-
-
-async def guidance_tool(guidance: str) -> str:
-    """
-    Guidance tool is used to provide guidance
-    to the answers that user provides
-    :param guidance: provide full guidance to find the next step
-    :type str: question delivered in string nlp format
-    :return: additional guidance to the agent
-    """
-    if isinstance(guidance, dict):
-        if "guidance" in guidance:
-            guidances = guidance["guidance"].split("\n")
-            return guidances[0]
-        return ""
-    else:
-        guidances = guidance.split("\n")
-        return guidances[0]
 
 
 async def msg_build(guidance: str) -> str:
@@ -144,16 +124,10 @@ async def define_question_parts(state: MatrixValidationState) -> MatrixValidatio
     )
     prompt_id = "cmde4qsv6009iyrs59mu3utg7"
     question_definition_prompt = get_prompt_from_registry(prompt_id)
-    msgs = convert_msg_request_to_llm_messages(state["messages"])
     prompt_template = ChatPromptTemplate.from_messages(
-        [("system", question_definition_prompt["value"])] + msgs
+        [("system", question_definition_prompt["value"])]
     )
     tools = [
-        StructuredTool.from_function(
-            name="get_validator_questions_per_difficulty",
-            func=get_validator_questions_per_difficulty,
-            coroutine=get_validator_questions_per_difficulty,
-        ),
         StructuredTool.from_function(
             name="msg_builder",
             func=msg_build,
@@ -162,34 +136,28 @@ async def define_question_parts(state: MatrixValidationState) -> MatrixValidatio
     ]
     prompt = await prompt_template.ainvoke(
         {
-            "tools": render_text_description(tools),
-            "skill_id": state["skill_id"],
-            "difficulty": state["difficulty"],
+            "question": state["question"],
+            "answer": state["answer"],
+            "rules": state["rules"],
         }
     )
     agent = create_react_agent(model=model, tools=tools)
     response = await agent.ainvoke(prompt)
     pprint.pprint(response, indent=4)
     print(f"MESSAGES QUESTION PARTS {state["messages"]}")
-    return {
-        "question_id": state["question_id"],
-        "messages": state["messages"],
-        "inner_messages": [response["messages"][-1].content],
-        "intermediate_steps": state["intermediate_steps"],
-    }
-
-
-async def prepare_tool(state: MatrixValidationState) -> MatrixValidationState:
-    question_tool = ToolCall(
-        name="get_validator_questions_per_difficulty",
-        args={"question_id": state["question_id"]},
-        id=str(uuid.uuid4()),
+    msg = MessagesRequestBase(
+        role="ai",
+        message=response["messages"][-1].content
     )
     return {
+        "question": state["question"],
+        "answer": state["answer"],
+        "rules": state["rules"],
         "question_id": state["question_id"],
-        "messages": [AIMessage(content="", tool_calls=[question_tool])],
-        "inner_messages": [],
-        "intermediate_steps": [],
+        "messages": [msg],
+        "inner_messages": [response["messages"][-1].content],
+        "intermediate_steps": state["intermediate_steps"],
+        "guidance_amount": 1
     }
 
 
@@ -236,7 +204,18 @@ async def grading_agent(state: MatrixValidationState):
         "messages": [response["messages"][-1]],
         "inner_messages": [],
         "intermediate_steps": [],
+        "guidance_amount": state["guidance_amount"]
     }
+
+
+async def finish(state: MatrixValidationState) -> MatrixValidationState:
+    return state
+
+
+async def route_request(state: MatrixValidationState) -> Literal["finish", "split"]:
+    if state["guidance_amount"] == 0:
+        return "split"
+    return "finish"
 
 
 @asynccontextmanager
@@ -244,16 +223,23 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
     try:
         async with get_checkpointer() as saver:
             state_graph = StateGraph(MatrixValidationState)
-            # state_graph.add_node("prepare_tool", prepare_tool)
-            # state_graph.add_node("tools", ToolNode(tools))
+            state_graph.add_node(
+                "split",
+                define_question_parts,
+            )
             state_graph.add_node(
                 "grading",
                 grading_agent,
                 retry_policy=RetryPolicy(max_attempts=3),
             )
-            # state_graph.add_edge(START, "prepare_tool")
-            # state_graph.add_edge("prepare_tool", "tools")
+            state_graph.add_node(
+                "finish",
+                finish,
+            )
             state_graph.add_edge(START, "grading")
+            state_graph.add_conditional_edges("grading", route_request)
+            state_graph.add_edge("split", "grading")
+            state_graph.add_edge("finish", END)
             state_graph.add_edge("grading", END)
 
             graph = state_graph.compile(checkpointer=saver)

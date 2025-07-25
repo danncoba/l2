@@ -66,8 +66,8 @@ def convert_msg_request_to_llm_messages(
 ) -> List[AIMessage | HumanMessage | ToolMessage | SystemMessage]:
     msgs = []
     for msg in messages:
-        if isinstance(msg, ToolMessage):
-            msgs.append(ToolMessage(content=msg, tool_call_id=uuid.uuid4()))
+        if isinstance(msg, ToolMessage) or isinstance(msg, AIMessage):
+            continue
         elif msg.role == "ai":
             msgs.append(AIMessage(msg.message))
         else:

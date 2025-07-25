@@ -150,10 +150,14 @@ async def answer_input_validation_question(
             }
             response = await graph.ainvoke(
                 {
+                    "question": knowledge_base.question,
+                    "answer": knowledge_base.answer,
+                    "rules": knowledge_base.rules,
                     "question_id": knowledge_base.id,
                     "messages": dto.messages,
                     "inner_messages": [],
                     "intermediate_steps": [],
+                    "guidance_amount": 0
                 },
                 configurable_run,
             )

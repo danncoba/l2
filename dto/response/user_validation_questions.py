@@ -14,7 +14,7 @@ class UserKnowledgeBaseResponse(BaseModel):
     question: str
     answer: Optional[str] = None
     options: Optional[List[Dict[str, Any]]] = None
-    rules: str
+    rules: Optional[str] = None
     question_type: str
     is_code_question: bool
     created_at: datetime
@@ -55,7 +55,7 @@ class KnowledgeBaseQuestionResponse(BaseModel):
     question: str
     answer: Optional[str]
     options: Optional[List[Dict[str, Any]]]
-    rules: str
+    rules: Optional[str] = None
     question_type: str
     is_code_question: bool
     created_at: datetime
