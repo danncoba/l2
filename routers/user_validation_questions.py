@@ -1,3 +1,4 @@
+import pprint
 import uuid
 from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends
@@ -156,16 +157,14 @@ async def answer_input_validation_question(
                     "question_id": knowledge_base.id,
                     "messages": dto.messages,
                     "inner_messages": [],
-                    "intermediate_steps": [],
-                    "guidance_amount": 0
+                    "guidance_amount": 0,
+                    "next": [],
                 },
                 configurable_run,
             )
+            pprint.pprint(f"Finalized response {response}")
             msg = response["messages"][-1]
-            answer = msg.content
-            actual_answer_index = answer.index(FINAL_ANSWER) + len(FINAL_ANSWER)
-            actual_answer = answer[actual_answer_index:]
             if isinstance(msg, AIMessage):
-                return MessagesRequestBase(role="ai", message=actual_answer)
+                return MessagesRequestBase(role="ai", message=msg.content)
             else:
-                return MessagesRequestBase(role="human", message=actual_answer)
+                return MessagesRequestBase(role="human", message=msg.content)

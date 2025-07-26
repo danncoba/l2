@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+
 from pydantic import BaseModel, field_validator
 
-from dto.response.matrix_skill_knowledge import MatrixSkillKnowledgeBaseResponse
 from dto.response.skills import SkillResponseSmall
 from dto.response.users import UserResponseBase
 
