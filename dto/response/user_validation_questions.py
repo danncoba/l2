@@ -59,3 +59,21 @@ class KnowledgeBaseQuestionResponse(BaseModel):
     question_type: str
     is_code_question: bool
     created_at: datetime
+
+
+class SkillFormQuestionResponse(BaseModel):
+    question_id: int
+    knowledge_base_id: int
+    question: str
+    question_type: str
+    options: Optional[List[Dict[str, Any]]] = None
+    rules: Optional[str] = None
+    is_code_question: bool
+    difficulty_level: int
+
+
+class SkillFormResponse(BaseModel):
+    skill: SkillResponseSmall
+    questions: List[SkillFormQuestionResponse]
+    total_questions: int
+    current_step: int = 1

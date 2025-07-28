@@ -1,4 +1,5 @@
 import os
+import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import AsyncGenerator, Any, List, Optional, Literal
@@ -168,6 +169,10 @@ async def grade_response_agent(state: MatrixValidationState) -> MatrixValidation
         }
     )
     response = await model.ainvoke(prompt)
+    print(f"RESPONSE GRADING -> {response}")
+    match = re.search(r"(Observation:|\nObservation:)", response.content)
+    if not match:
+        raise LLMFormatError("Invalid response format")
     print(f"FINISHED THIS SETUP -> {response}")
     return {
         **state,
@@ -182,7 +187,7 @@ async def grading_agent(state: MatrixValidationState) -> MatrixValidationState:
     agents = [
         Agent(
             name="split",
-            description="Use this agent when you need clarification what exactly needs to be answered! The response has to be followed exactly when grading without adding additional topics to the answers!",
+            description="Use this agent when you need clarification what exactly needs to be answered! The response has to be followed exactly what else needs to be questioned!",
             param="query: The question you want to split",
         )
     ]

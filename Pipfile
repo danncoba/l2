@@ -39,6 +39,7 @@ litellm = "*"
 langtrace-python-sdk = "*"
 gradio = "*"
 eventlet = "*"
+inspect-ai = "*"
 
 [dev-packages]
 pip = "*"

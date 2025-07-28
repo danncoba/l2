@@ -17,7 +17,7 @@ from dto.request.user_validation_questions import (
 from dto.response.user_validation_questions import (
     UserValidationQuestionResponse,
     KnowledgeBaseQuestionResponse,
-    UserKnowledgeBaseResponse,
+    UserKnowledgeBaseResponse, SkillFormResponse, SkillFormQuestionResponse,
 )
 from service.service import BaseService
 from security import get_current_user
@@ -227,3 +227,45 @@ async def answer_input_validation_question(
                 current_user=current_user,
                 model="gpt-o3-mini",
             )
+
+@user_validation_questions_router.get(
+    "/skill/{skill_id}/form", response_model=SkillFormResponse
+)
+async def get_skill_validation_form(
+    skill_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: User = Depends(get_current_user),
+) -> SkillFormResponse:
+    from fastapi import HTTPException
+    validation_service = BaseService(UserValidationQuestions, session)
+    questions = await validation_service.list_all(
+        filters={"user_id": current_user.id, "skill_id": skill_id}
+    )
+    if not questions:
+        raise HTTPException(status_code=404, detail="No questions found for this skill")
+    
+    skill = await questions[0].awaitable_attrs.skill
+    form_questions = []
+    
+    for question in questions:
+        knowledge_base = await question.awaitable_attrs.knowledge_base
+        options = None
+        if knowledge_base.question_type in ["multi", "single"] and knowledge_base.options:
+            options = [{"option": opt.get("option")} for opt in knowledge_base.options]
+        
+        form_questions.append(SkillFormQuestionResponse(
+            question_id=question.id,
+            knowledge_base_id=knowledge_base.id,
+            question=knowledge_base.question,
+            question_type=knowledge_base.question_type,
+            options=options,
+            rules=knowledge_base.rules,
+            is_code_question=knowledge_base.is_code_question,
+            difficulty_level=knowledge_base.difficulty_level
+        ))
+    
+    return SkillFormResponse(
+        skill=skill.model_dump(),
+        questions=form_questions,
+        total_questions=len(form_questions)
+    )
