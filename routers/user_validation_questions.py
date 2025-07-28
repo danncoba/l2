@@ -115,7 +115,29 @@ async def answer_multi_validation_question(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    pass
+    from fastapi import HTTPException
+
+    validation_service = BaseService(UserValidationQuestions, session)
+    user_question = await validation_service.get(question_id)
+    if user_question.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    knowledge_base = await user_question.awaitable_attrs.knowledge_base
+    if knowledge_base.question_type != "multi":
+        raise HTTPException(status_code=400, detail="Question is not multi-choice")
+    if not knowledge_base.options:
+        raise HTTPException(status_code=400, detail="No options available")
+    correct_indices = [
+        i
+        for i, opt in enumerate(knowledge_base.options)
+        if opt.get("is_correct", False)
+    ]
+    if any(
+        idx >= len(knowledge_base.options) or idx < 0 for idx in dto.selected_option
+    ):
+        raise HTTPException(status_code=400, detail="Invalid option index")
+    is_correct = set(dto.selected_option) == set(correct_indices)
+
+    return {"correct": is_correct, "correct_options": correct_indices}
 
 
 @user_validation_questions_router.post(
@@ -127,7 +149,32 @@ async def answer_single_validation_question(
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    pass
+    from fastapi import HTTPException
+
+    validation_service = BaseService(UserValidationQuestions, session)
+    user_question = await validation_service.get(question_id)
+    if user_question.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    knowledge_base = await user_question.awaitable_attrs.knowledge_base
+    if knowledge_base.question_type != "single":
+        raise HTTPException(status_code=400, detail="Question is not single-choice")
+    if not knowledge_base.options:
+        raise HTTPException(status_code=400, detail="No options available")
+    if dto.selected_option >= len(knowledge_base.options) or dto.selected_option < 0:
+        raise HTTPException(status_code=400, detail="Invalid option index")
+    correct_index = next(
+        (
+            i
+            for i, opt in enumerate(knowledge_base.options)
+            if opt.get("is_correct", False)
+        ),
+        None,
+    )
+    if correct_index is None:
+        raise HTTPException(status_code=500, detail="No correct answer found")
+    is_correct = dto.selected_option == correct_index
+
+    return {"correct": is_correct, "correct_option": correct_index}
 
 
 @user_validation_questions_router.post(
@@ -160,6 +207,7 @@ async def answer_input_validation_question(
                         "question_id": knowledge_base.id,
                         "messages": dto.messages,
                         "inner_messages": [],
+                        "guidance_questions": [],
                         "guidance_amount": 0,
                         "next": [],
                     },
@@ -171,11 +219,11 @@ async def answer_input_validation_question(
                     return MessagesRequestBase(role="ai", message=msg.content)
                 else:
                     return MessagesRequestBase(role="human", message=msg.content)
-        except LLMFormatError as format_err: #LLMFormatErr
+        except LLMFormatError as format_err:  # LLMFormatErr
             await answer_input_validation_question(
                 question_id=question_id,
                 dto=dto,
                 session=session,
                 current_user=current_user,
-                model="gpt-o3-mini"
+                model="gpt-o3-mini",
             )

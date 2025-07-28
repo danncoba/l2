@@ -37,7 +37,9 @@ class LLMFormatError(Exception):
 
 
 class LLMChatBuilder:
-    def __init__(self, model: str, max_tokens: int = 500, stop_sequences: List[str] = None):
+    def __init__(
+        self, model: str, max_tokens: int = 500, stop_sequences: List[str] = None
+    ):
         self.model = model
         self.__max_tokens = max_tokens
         self.__stop_sequence = stop_sequences
@@ -70,7 +72,7 @@ class LLMChatBuilder:
             max_tokens=self.__max_tokens,
             temperature=0,
             top_p=1,
-            **additional_kw
+            **additional_kw,
         )
         return model
 
@@ -80,6 +82,7 @@ class LLMChatBuilder:
             additional_kw["stop_sequences"] = self.__stop_sequence
         return additional_kw
 
+
 class MatrixValidationState(TypedDict):
     model: str
     question_id: int
@@ -87,6 +90,7 @@ class MatrixValidationState(TypedDict):
     answer: str
     rules: Optional[str] = None
     inner_messages: Annotated[list, add_messages]
+    guidance_questions: Annotated[list, add_messages]
     messages: Annotated[list, add_messages]
     guidance_amount: int
     next: Annotated[list, add_messages]
@@ -140,13 +144,13 @@ async def define_question_parts(state: MatrixValidationState) -> MatrixValidatio
             "question": state["question"],
             "answer": state["answer"],
             "rules": state["rules"],
-            "user_responses": "\n".join(user_responses)
+            "user_responses": "\n".join(user_responses),
         }
     )
     response = await model.ainvoke(prompt)
     return {
         **state,
-        "inner_messages": state.get("inner_messages", []) + [response],
+        "guidance_questions": state.get("guidance_questions", []) + [response],
     }
 
 
@@ -160,7 +164,7 @@ async def grade_response_agent(state: MatrixValidationState) -> MatrixValidation
     prompt = await prompt_template.ainvoke(
         {
             "correct_answer": state["answer"],
-            "questions": state["inner_messages"][-1].content
+            "questions": state["guidance_questions"][-1].content,
         }
     )
     response = await model.ainvoke(prompt)
@@ -172,7 +176,9 @@ async def grade_response_agent(state: MatrixValidationState) -> MatrixValidation
 
 
 async def grading_agent(state: MatrixValidationState) -> MatrixValidationState:
-    model = LLMChatBuilder(state["model"], max_tokens=300, stop_sequences=["\Observation"]).build()
+    model = LLMChatBuilder(
+        state["model"], max_tokens=300, stop_sequences=["\Observation"]
+    ).build()
     agents = [
         Agent(
             name="split",
@@ -258,7 +264,7 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
             state_graph.add_node(
                 "validator",
                 grade_response_agent,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0)
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
             )
             state_graph.add_node(
                 "finish",
