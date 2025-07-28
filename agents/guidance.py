@@ -10,7 +10,6 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import Row, RowMapping
 
-from agents.consts import GUIDANCE_PROMPT
 from agents.llm_callback import CustomLlmTrackerCallback
 from db.db import get_session
 from db.models import Grade, UserSkills, User, Skill

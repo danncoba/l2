@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agents.llm_callback import CustomLlmTrackerCallback
 from db.models import User, Skill, Grade
 from dto.response.matrix_chats import MessageDict
-from logger import logger
 from service.service import BaseService
 
 load_dotenv()
@@ -90,8 +89,6 @@ async def welcome_agent_batch(
         await prepare_welcome_prompt(req.user_id, req.skill_id, session)
         for req in all_requests
     ]
-    logger.info(f"Batch size: {len(req_batch)}")
-    logger.info("Batch: before batch completion")
     try:
         responses = batch_completion(
             model=f"azure/{LITE_MODEL}",
@@ -101,10 +98,8 @@ async def welcome_agent_batch(
             api_base=LITE_LLM_URL,
             messages=req_batch,
         )
-        logger.info(f"Batch Response: {responses}")
         return responses
     except Exception as e:
-        logger.error(f"Batch completion error: {e}")
         print(f"Exception type: {type(e)}")
         print(f"Exception message: {str(e)}")
         print(f"Full traceback:")

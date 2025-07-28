@@ -25,12 +25,8 @@ from langgraph.types import interrupt, RetryPolicy
 from langtrace_python_sdk import get_prompt_from_registry
 from pydantic import BaseModel
 
-from agents.consts import (
-    MODERATION_TEMPLATE,
-)
 from agents.dto import AgentMessage, ChatMessage
 from agents.reasoner import get_checkpointer
-from logger import logger
 from tools.tools import (
     find_current_grade_for_user_and_skill,
     get_grades_or_expertise,
@@ -243,13 +239,11 @@ async def discrepancy_agent(state: SupervisorState) -> SupervisorState:
         }
     )
     print(f"\n\nDISCREPANCY AGAIN PROMPT\n {prompt}")
-    logger.info(f"\n\nDISCREPANCY AGAIN PROMPT\n {prompt}")
     agent = create_react_agent(model=model, tools=tools)
     response = await agent.ainvoke(prompt)
     # if not response.content.startswith("Observe: "):
     #     raise ValueError("Not proper formatted response")
     print(f"\n\nDISCREPANCY AGAIN RESPONSE\n {response}")
-    logger.info(f"\n\nDISCREPANCY AGAIN RESPONSE\n {response}")
     msg = []
     if "messages" in response and len(response["messages"]) > 0:
         response_msgs = response["messages"][-1]
