@@ -25,6 +25,7 @@ load_dotenv()
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
 LITE_MODEL = os.getenv("OPENAI_MODEL")
+LITE_OPENAI_O3_MODEL = os.getenv("LITE_OPENAI_O3_MODEL")
 
 FINAL_ANSWER_STR = "Final Answer: "
 
@@ -35,7 +36,52 @@ class LLMFormatError(Exception):
         super().__init__(message)
 
 
+class LLMChatBuilder:
+    def __init__(self, model: str, max_tokens: int = 500, stop_sequences: List[str] = None):
+        self.model = model
+        self.__max_tokens = max_tokens
+        self.__stop_sequence = stop_sequences
+
+    def build(self) -> ChatOpenAI:
+        if self.model == "gpt-o3-mini":
+            return self.__build_gpt_o3_mini()
+        return self.__build_gpt_4o()
+
+    def __build_gpt_4o(self) -> ChatOpenAI:
+        additional_kw = self.__get_additional_kw()
+        model = ChatOpenAI(
+            model=LITE_MODEL,
+            base_url=LITE_LLM_URL,
+            api_key=LITE_LLM_API_KEY,
+            temperature=0,
+            top_p=1,
+            max_tokens=self.__max_tokens,
+            stop_sequences=["\nObservation: "],
+            # **additional_kw
+        )
+        return model
+
+    def __build_gpt_o3_mini(self) -> ChatOpenAI:
+        additional_kw = self.__get_additional_kw()
+        model = ChatOpenAI(
+            model=LITE_OPENAI_O3_MODEL,
+            base_url=LITE_LLM_URL,
+            api_key=LITE_LLM_API_KEY,
+            max_tokens=self.__max_tokens,
+            temperature=0,
+            top_p=1,
+            **additional_kw
+        )
+        return model
+
+    def __get_additional_kw(self) -> dict[str, str]:
+        additional_kw = {}
+        if self.__stop_sequence is not None:
+            additional_kw["stop_sequences"] = self.__stop_sequence
+        return additional_kw
+
 class MatrixValidationState(TypedDict):
+    model: str
     question_id: int
     question: str
     answer: str
@@ -76,25 +122,25 @@ async def define_question_parts(state: MatrixValidationState) -> MatrixValidatio
     :return: the updated state
     :rtype MatrixValidationState
     """
-    model = ChatOpenAI(
-        model=LITE_MODEL,
-        base_url=LITE_LLM_URL,
-        api_key=LITE_LLM_API_KEY,
-        temperature=0,
-        top_p=1,
-        max_tokens=500,
-    )
+    model = LLMChatBuilder(state["model"]).build()
     prompt_id = "cmde4qsv6009iyrs59mu3utg7"
     question_definition_prompt = get_prompt_from_registry(prompt_id)
     prompt_template = ChatPromptTemplate.from_messages(
         [("system", question_definition_prompt["value"])]
     )
+    user_responses = []
+    counter = 0
+    for msg in state["messages"]:
+        if msg.role == "human":
+            counter += 1
+            user_responses.append(f"User Answer {counter}: {msg.message}\n")
     print(f"SPLIT -> {state["inner_messages"]}")
     prompt = await prompt_template.ainvoke(
         {
             "question": state["question"],
             "answer": state["answer"],
             "rules": state["rules"],
+            "user_responses": "\n".join(user_responses)
         }
     )
     response = await model.ainvoke(prompt)
@@ -104,24 +150,37 @@ async def define_question_parts(state: MatrixValidationState) -> MatrixValidatio
     }
 
 
-async def grading_agent(state: MatrixValidationState) -> MatrixValidationState:
-    model = ChatOpenAI(
-        model=LITE_MODEL,
-        base_url=LITE_LLM_URL,
-        api_key=LITE_LLM_API_KEY,
-        temperature=0,
-        top_p=1,
-        max_tokens=300,
-        stop_sequences=["\nObservation:"],
+async def grade_response_agent(state: MatrixValidationState) -> MatrixValidationState:
+    model = LLMChatBuilder(state["model"]).build()
+    prompt_id = "cmdmpcw3700h4yrs524u29w5q"
+    question_definition_prompt = get_prompt_from_registry(prompt_id)
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", question_definition_prompt["value"])]
     )
+    prompt = await prompt_template.ainvoke(
+        {
+            "correct_answer": state["answer"],
+            "questions": state["inner_messages"][-1].content
+        }
+    )
+    response = await model.ainvoke(prompt)
+    print(f"FINISHED THIS SETUP -> {response}")
+    return {
+        **state,
+        "inner_messages": state.get("inner_messages", []) + [response],
+    }
+
+
+async def grading_agent(state: MatrixValidationState) -> MatrixValidationState:
+    model = LLMChatBuilder(state["model"], max_tokens=300, stop_sequences=["\Observation"]).build()
     agents = [
         Agent(
             name="split",
-            description="Get exactly what needs to be answer. Use this agent to do a task of providing what exactly needs to be answered!",
+            description="Use this agent when you need clarification what exactly needs to be answered! The response has to be followed exactly when grading without adding additional topics to the answers!",
             param="query: The question you want to split",
         )
     ]
-    prompt_id = "cmde27c69009eyrs5rg0xgdro"
+    prompt_id = "cmdlbmfyu00feyrs5earz6tgc"
     grading_prompt = get_prompt_from_registry(prompt_id)
     msgs = convert_msg_request_to_llm_messages(state["messages"])
     discussion = parse_discussion(state["messages"])
@@ -129,14 +188,13 @@ async def grading_agent(state: MatrixValidationState) -> MatrixValidationState:
         [("system", grading_prompt["value"])]
     )
     print(f"INNER MESSAGES {state['inner_messages']}")
+    agents_arr = [
+        f"name: {agent.name}, description: {agent.description}, params: {agent.param}"
+        for agent in agents
+    ]
     prompt = await prompt_template.ainvoke(
         {
-            "agents": "\n*".join(
-                [
-                    f"name: {agent.name}, description: {agent.description}, params: {agent.param}"
-                    for agent in agents
-                ]
-            ),
+            "agents": "\n*".join(agents_arr),
             "agent_names": ",".join([agent.name for agent in agents]),
             "agent_scratchpad": "\n".join(
                 [msg.content for msg in state["inner_messages"]]
@@ -198,12 +256,18 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
                 retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
             )
             state_graph.add_node(
+                "validator",
+                grade_response_agent,
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0)
+            )
+            state_graph.add_node(
                 "finish",
                 finish,
             )
             state_graph.add_edge(START, "grading")
             state_graph.add_conditional_edges("grading", route_request)
-            state_graph.add_edge("split", "grading")
+            state_graph.add_edge("split", "validator")
+            state_graph.add_edge("validator", "grading")
             state_graph.add_edge("finish", END)
             state_graph.add_edge("grading", END)
 

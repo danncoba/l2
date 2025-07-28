@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from langchain_core.messages import AIMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents.validations_agent import get_graph
+from agents.validations_agent import get_graph, LLMFormatError
 from db.db import get_session
 from db.models import UserValidationQuestions, MatrixSkillKnowledgeBase, User
 from dto.request.testing import MessagesRequestBase
@@ -138,33 +138,44 @@ async def answer_input_validation_question(
     dto: AnswerInputQuestionRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[User, Depends(get_current_user)],
+    model: str = "gpt-4o",
 ) -> MessagesRequestBase:
     async for session in get_session():
         service = BaseService(UserValidationQuestions, session)
         question = await service.get(question_id)
         skill = await question.awaitable_attrs.skill
         knowledge_base = await question.awaitable_attrs.knowledge_base
-        async with get_graph() as graph:
-            configurable_run = {
-                "configurable": {"thread_id": uuid.uuid4()},
-                "recursion_limit": 10,
-            }
-            response = await graph.ainvoke(
-                {
-                    "question": knowledge_base.question,
-                    "answer": knowledge_base.answer,
-                    "rules": knowledge_base.rules,
-                    "question_id": knowledge_base.id,
-                    "messages": dto.messages,
-                    "inner_messages": [],
-                    "guidance_amount": 0,
-                    "next": [],
-                },
-                configurable_run,
+        try:
+            async with get_graph() as graph:
+                configurable_run = {
+                    "configurable": {"thread_id": uuid.uuid4()},
+                    "recursion_limit": 10,
+                }
+                response = await graph.ainvoke(
+                    {
+                        "model": model,
+                        "question": knowledge_base.question,
+                        "answer": knowledge_base.answer,
+                        "rules": knowledge_base.rules,
+                        "question_id": knowledge_base.id,
+                        "messages": dto.messages,
+                        "inner_messages": [],
+                        "guidance_amount": 0,
+                        "next": [],
+                    },
+                    configurable_run,
+                )
+                pprint.pprint(f"Finalized response {response}")
+                msg = response["messages"][-1]
+                if isinstance(msg, AIMessage):
+                    return MessagesRequestBase(role="ai", message=msg.content)
+                else:
+                    return MessagesRequestBase(role="human", message=msg.content)
+        except LLMFormatError as format_err: #LLMFormatErr
+            await answer_input_validation_question(
+                question_id=question_id,
+                dto=dto,
+                session=session,
+                current_user=current_user,
+                model="gpt-o3-mini"
             )
-            pprint.pprint(f"Finalized response {response}")
-            msg = response["messages"][-1]
-            if isinstance(msg, AIMessage):
-                return MessagesRequestBase(role="ai", message=msg.content)
-            else:
-                return MessagesRequestBase(role="human", message=msg.content)
