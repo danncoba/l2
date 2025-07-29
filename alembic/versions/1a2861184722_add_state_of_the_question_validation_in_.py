@@ -5,6 +5,7 @@ Revises: 0314d4f7b771
 Create Date: 2025-07-28 08:22:20.456517
 
 """
+
 import uuid
 from typing import Sequence, Union
 
@@ -22,21 +23,17 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "user_validation_questions",
-        sa.Column("status",
-                  sa.String(100),
-                  nullable=True,
-                  default="pending")
+        sa.Column("status", sa.String(100), nullable=True, default="pending"),
     )
     op.add_column(
         "user_validation_questions",
-        sa.Column("question_uuid",
-                  sa.String(100),
-                  default=uuid.uuid4(),
-                  nullable=True)
+        sa.Column("question_uuid", sa.String(100), default=uuid.uuid4(), nullable=True),
     )
     op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
     op.execute("UPDATE user_validation_questions SET status = 'pending';")
-    op.execute("UPDATE user_validation_questions SET question_uuid = uuid_generate_v4();")
+    op.execute(
+        "UPDATE user_validation_questions SET question_uuid = uuid_generate_v4();"
+    )
     op.alter_column("user_validation_questions", "status", nullable=False)
     op.alter_column("user_validation_questions", "question_uuid", nullable=False)
 

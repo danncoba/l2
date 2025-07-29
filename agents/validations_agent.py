@@ -223,7 +223,7 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
             name="grade_user",
             description="Use this agent to grade user responses! Use this grade to return the completeness level.",
             param="User responses",
-        )
+        ),
     ]
     prompt_id = "cmdnantct00iwyrs5wqoa9nkv"
     grading_prompt = get_prompt_from_registry(prompt_id)
@@ -268,8 +268,7 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
         elif response.content.startswith("Final Answer:"):
             response_msgs.append(
                 MessagesRequestBase(
-                    role="ai",
-                    message=response.content.strip("Final Answer: ")
+                    role="ai", message=response.content.strip("Final Answer: ")
                 )
             )
     else:
@@ -289,7 +288,9 @@ async def finish(state: MatrixValidationState) -> MatrixValidationState:
     return state
 
 
-async def route_request(state: MatrixValidationState) -> Literal["finish", "split", "grader"]:
+async def route_request(
+    state: MatrixValidationState,
+) -> Literal["finish", "split", "grader"]:
     if len(state["next"]) > 0 and state["next"][-1] == "split":
         return "split"
     if len(state["next"]) > 0 and state["next"][-1] == "grader":
