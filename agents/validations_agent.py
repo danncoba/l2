@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import AsyncGenerator, Any, List, Optional, Literal
 
 from dotenv import load_dotenv
-from langchain_core.messages import ToolMessage, AIMessage
+from langchain_core.messages import ToolMessage, AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.constants import START, END
@@ -117,7 +117,7 @@ def parse_discussion(messages: List[MessagesRequestBase]) -> str:
     return full_discussion
 
 
-async def define_question_parts(state: MatrixValidationState) -> MatrixValidationState:
+async def question_splitter(state: MatrixValidationState) -> MatrixValidationState:
     """
     Define parts of the question that needs to be answered
     by the user. Returns the string representation
@@ -128,7 +128,7 @@ async def define_question_parts(state: MatrixValidationState) -> MatrixValidatio
     :rtype MatrixValidationState
     """
     model = LLMChatBuilder(state["model"]).build()
-    prompt_id = "cmde4qsv6009iyrs59mu3utg7"
+    prompt_id = "cmdnbhy7c00jjyrs5i348rspq"
     question_definition_prompt = get_prompt_from_registry(prompt_id)
     prompt_template = ChatPromptTemplate.from_messages(
         [("system", question_definition_prompt["value"])]
@@ -155,9 +155,9 @@ async def define_question_parts(state: MatrixValidationState) -> MatrixValidatio
     }
 
 
-async def grade_response_agent(state: MatrixValidationState) -> MatrixValidationState:
+async def question_validator(state: MatrixValidationState) -> MatrixValidationState:
     model = LLMChatBuilder(state["model"]).build()
-    prompt_id = "cmdmpcw3700h4yrs524u29w5q"
+    prompt_id = "cmdncdcg900jpyrs54a73bh7v"
     question_definition_prompt = get_prompt_from_registry(prompt_id)
     prompt_template = ChatPromptTemplate.from_messages(
         [("system", question_definition_prompt["value"])]
@@ -180,18 +180,52 @@ async def grade_response_agent(state: MatrixValidationState) -> MatrixValidation
     }
 
 
-async def grading_agent(state: MatrixValidationState) -> MatrixValidationState:
+async def grader(state: MatrixValidationState) -> MatrixValidationState:
+    model = LLMChatBuilder(state["model"]).build()
+    prompt_id = "cmdnd3zhv00k0yrs5rvseaaeh"
+    grader_prompt = get_prompt_from_registry(prompt_id)
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", grader_prompt["value"])]
+    )
+    user_responses = []
+    counter = 0
+    for msg in state["messages"]:
+        if msg.role == "human":
+            counter += 1
+            user_responses.append(f"\nUser Answer {counter}: {msg.message}")
+    prompt = await prompt_template.ainvoke(
+        {
+            "grader_prompt": state["answer"],
+            "responses": user_responses,
+        }
+    )
+    response = await model.ainvoke(prompt)
+    match = re.search(r"(Observation:|\nObservation:)", response.content)
+    if not match:
+        raise LLMFormatError("Invalid response format")
+    return {
+        **state,
+        "inner_messages": state.get("inner_messages", []) + [response],
+    }
+
+
+async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
     model = LLMChatBuilder(
         state["model"], max_tokens=300, stop_sequences=["\Observation"]
     ).build()
     agents = [
         Agent(
             name="split",
-            description="Use this agent when you need clarification what exactly needs to be answered! The response has to be followed exactly what else needs to be questioned!",
+            description="Use this agent when you need clarification what exactly has been answered and what is left unanswered!",
             param="query: The question you want to split",
+        ),
+        Agent(
+            name="grade_user",
+            description="Use this agent to grade user responses! Use this grade to return the completeness level.",
+            param="User responses",
         )
     ]
-    prompt_id = "cmdlbmfyu00feyrs5earz6tgc"
+    prompt_id = "cmdnantct00iwyrs5wqoa9nkv"
     grading_prompt = get_prompt_from_registry(prompt_id)
     msgs = convert_msg_request_to_llm_messages(state["messages"])
     discussion = parse_discussion(state["messages"])
@@ -200,12 +234,12 @@ async def grading_agent(state: MatrixValidationState) -> MatrixValidationState:
     )
     print(f"INNER MESSAGES {state['inner_messages']}")
     agents_arr = [
-        f"name: {agent.name}, description: {agent.description}, params: {agent.param}"
+        f"* name: {agent.name}, description: {agent.description}, params: {agent.param}"
         for agent in agents
     ]
     prompt = await prompt_template.ainvoke(
         {
-            "agents": "\n*".join(agents_arr),
+            "agents": "\n".join(agents_arr),
             "agent_names": ",".join([agent.name for agent in agents]),
             "agent_scratchpad": "\n".join(
                 [msg.content for msg in state["inner_messages"]]
@@ -225,9 +259,19 @@ async def grading_agent(state: MatrixValidationState) -> MatrixValidationState:
         next_step.append("finish")
         print(f"FINAL INTERMEDIATE STATE {state["inner_messages"]}")
         if FINAL_ANSWER_STR in response.content:
-            response_msgs.append(AIMessage(response.content.split(FINAL_ANSWER_STR)[1]))
+            response_msgs.append(
+                MessagesRequestBase(
+                    role="ai",
+                    message=response.content.split(FINAL_ANSWER_STR)[1],
+                )
+            )
         elif response.content.startswith("Final Answer:"):
-            response_msgs.append(AIMessage(response.content.strip("Final Answer: ")))
+            response_msgs.append(
+                MessagesRequestBase(
+                    role="ai",
+                    message=response.content.strip("Final Answer: ")
+                )
+            )
     else:
         if "Action: " in response.content:
             next_step.append("split")
@@ -245,9 +289,11 @@ async def finish(state: MatrixValidationState) -> MatrixValidationState:
     return state
 
 
-async def route_request(state: MatrixValidationState) -> Literal["finish", "split"]:
+async def route_request(state: MatrixValidationState) -> Literal["finish", "split", "grader"]:
     if len(state["next"]) > 0 and state["next"][-1] == "split":
         return "split"
+    if len(state["next"]) > 0 and state["next"][-1] == "grader":
+        return "grader"
     return "finish"
 
 
@@ -258,29 +304,35 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
             state_graph = StateGraph(MatrixValidationState)
             state_graph.add_node(
                 "split",
-                define_question_parts,
+                question_splitter,
                 retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
             )
             state_graph.add_node(
-                "grading",
-                grading_agent,
+                "evaluator",
+                evaluator,
                 retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
             )
             state_graph.add_node(
                 "validator",
-                grade_response_agent,
+                question_validator,
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
+            )
+            state_graph.add_node(
+                "grader",
+                grader,
                 retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
             )
             state_graph.add_node(
                 "finish",
                 finish,
             )
-            state_graph.add_edge(START, "grading")
-            state_graph.add_conditional_edges("grading", route_request)
+            state_graph.add_edge(START, "evaluator")
+            state_graph.add_conditional_edges("evaluator", route_request)
             state_graph.add_edge("split", "validator")
-            state_graph.add_edge("validator", "grading")
+            state_graph.add_edge("validator", "evaluator")
+            state_graph.add_edge("grader", "evaluator")
             state_graph.add_edge("finish", END)
-            state_graph.add_edge("grading", END)
+            state_graph.add_edge("evaluator", END)
 
             graph = state_graph.compile(checkpointer=saver)
             yield graph

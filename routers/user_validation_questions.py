@@ -80,6 +80,8 @@ async def get_knowledge_base_question(
     try:
         # Get user validation question and verify ownership
         user_question = await validation_service.get(question_id)
+        messages = []
+
         if user_question.user_id != current_user.id:
             from fastapi import HTTPException
 
@@ -88,6 +90,20 @@ async def get_knowledge_base_question(
         knowledge_question = await knowledge_service.get(
             user_question.knowledge_base_id
         )
+        async with get_graph() as graph:
+            configurable_run = {
+                "configurable": {"thread_id": user_question.question_uuid},
+                "recursion_limit": 10,
+            }
+            state = await graph.aget_state(configurable_run)
+            print("STATE ->")
+            pprint.pprint(state)
+            if len(state[0].keys()) > 0:
+                messages = state[0]["messages"]
+            else:
+                messages = [
+                    MessagesRequestBase(role="ai", message=knowledge_question.question)
+                ]
         response_data = knowledge_question.model_dump()
         if knowledge_question.question_type == "input":
             response_data["answer"] = None
@@ -98,8 +114,9 @@ async def get_knowledge_base_question(
             response_data["options"] = [
                 {"option": opt.get("option")} for opt in response_data["options"]
             ]
-
-        return KnowledgeBaseQuestionResponse(**response_data)
+        print("MSGS ->")
+        pprint.pprint(state[0])
+        return KnowledgeBaseQuestionResponse(**response_data, messages=messages)
     except Exception as e:
         from fastapi import HTTPException
 
@@ -195,7 +212,7 @@ async def answer_input_validation_question(
         try:
             async with get_graph() as graph:
                 configurable_run = {
-                    "configurable": {"thread_id": uuid.uuid4()},
+                    "configurable": {"thread_id": question.question_uuid},
                     "recursion_limit": 10,
                 }
                 response = await graph.ainvoke(
@@ -218,7 +235,7 @@ async def answer_input_validation_question(
                 if isinstance(msg, AIMessage):
                     return MessagesRequestBase(role="ai", message=msg.content)
                 else:
-                    return MessagesRequestBase(role="human", message=msg.content)
+                    return MessagesRequestBase(role="human", message=msg.message)
         except LLMFormatError as format_err:  # LLMFormatErr
             await answer_input_validation_question(
                 question_id=question_id,

@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel, field_validator
 
+from dto.request.testing import MessagesRequestBase
 from dto.response.skills import SkillResponseSmall
 from dto.response.users import UserResponseBase
 
@@ -54,6 +55,7 @@ class KnowledgeBaseQuestionResponse(BaseModel):
     difficulty_level: int
     question: str
     answer: Optional[str]
+    messages: List[MessagesRequestBase] = []
     options: Optional[List[Dict[str, Any]]]
     rules: Optional[str] = None
     question_type: str
