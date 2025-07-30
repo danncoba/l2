@@ -105,6 +105,8 @@ def matrix_validation_scorer():
             You are matching do the user message and ai message are similar in meaning!
             Content itself does not need to match, the meaning has to be similar or same for them to be declared
             as similar!
+            Most important part is completeness percentage. 
+            Biggest allowed difference between assistant and users completeness level can be 15% to think of them as similar!
             
             Respond in json format:
             is_similar: boolean, whether they are similar or not
@@ -142,7 +144,7 @@ def matrix_validation_scorer():
 @task
 def matrix_validation_eval():
     return Task(
-        dataset=csv_dataset("evaluation_dataset_new.csv"),
+        dataset=csv_dataset("small_eval.csv"),
         plan=[matrix_validation_solver()],
         scorer=matrix_validation_scorer(),
         fail_on_error=False,
