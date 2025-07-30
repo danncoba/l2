@@ -156,6 +156,13 @@ async def question_splitter(state: MatrixValidationState) -> MatrixValidationSta
 
 
 async def question_validator(state: MatrixValidationState) -> MatrixValidationState:
+    """
+    Validator that validates and checks that the question
+    is not leaking any unnecessary information to the user
+    and validates whether the we need to recheck the answer
+    :param state:
+    :return:
+    """
     model = LLMChatBuilder(state["model"]).build()
     prompt_id = "cmdncdcg900jpyrs54a73bh7v"
     question_definition_prompt = get_prompt_from_registry(prompt_id)
@@ -284,6 +291,42 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
     }
 
 
+async def reflection_agent(state: MatrixValidationState) -> MatrixValidationState:
+    """
+    Reflection agent criticizing the work of evaluator agent
+    :param state:
+    :return:
+    """
+    model = LLMChatBuilder(
+        state["model"], max_tokens=300
+    ).build()
+    prompt_id = "cmdpiq6g500w8yrs5gop0vctp"
+    grading_prompt = get_prompt_from_registry(prompt_id)
+    msgs = convert_msg_request_to_llm_messages(state["messages"])
+    discussion = parse_discussion(state["messages"])
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", grading_prompt["value"])]
+    )
+    print(f"INNER MESSAGES {state['inner_messages']}")
+    prompt = await prompt_template.ainvoke(
+        {
+            "question": state["question"],
+            "answer": state["answer"],
+            "user_responses": state["messages"][-1].message,
+        }
+    )
+    response = await model.ainvoke(prompt)
+    msg = MessagesRequestBase(
+        role="ai",
+        message=response.content,
+    )
+    return {
+        **state,
+        "messages": state.get("inner_messages", []) + [msg],
+    }
+
+
+
 async def finish(state: MatrixValidationState) -> MatrixValidationState:
     return state
 
@@ -324,6 +367,11 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
                 retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
             )
             state_graph.add_node(
+                "reflect",
+                reflection_agent,
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
+            )
+            state_graph.add_node(
                 "finish",
                 finish,
             )
@@ -333,6 +381,8 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
             state_graph.add_edge("validator", "evaluator")
             state_graph.add_edge("grader", "evaluator")
             state_graph.add_edge("finish", END)
+            # state_graph.add_edge("finish", "reflect")
+            # state_graph.add_edge("reflect", "evaluator")
             state_graph.add_edge("evaluator", END)
 
             graph = state_graph.compile(checkpointer=saver)

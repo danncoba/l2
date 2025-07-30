@@ -1,11 +1,11 @@
 import pprint
 import uuid
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Any, Dict
 from fastapi import APIRouter, Depends
 from langchain_core.messages import AIMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents.validations_agent import get_graph, LLMFormatError
+from agents.validations_agent import get_graph, LLMFormatError, MatrixValidationState
 from db.db import get_session
 from db.models import UserValidationQuestions, MatrixSkillKnowledgeBase, User
 from dto.request.testing import MessagesRequestBase
@@ -94,7 +94,8 @@ async def get_knowledge_base_question(
         )
         async with get_graph() as graph:
             configurable_run = {
-                "configurable": {"thread_id": user_question.question_uuid},
+                # "configurable": {"thread_id": user_question.question_uuid},
+                "configurable": {"thread_id": uuid.uuid4()},
                 "recursion_limit": 10,
             }
             state = await graph.aget_state(configurable_run)
@@ -214,7 +215,8 @@ async def answer_input_validation_question(
         try:
             async with get_graph() as graph:
                 configurable_run = {
-                    "configurable": {"thread_id": question.question_uuid},
+                    # "configurable": {"thread_id": question.question_uuid}, # This for correct state management
+                    "configurable": {"thread_id": uuid.uuid4()}, # This is for testing
                     "recursion_limit": 10,
                 }
                 response = await graph.ainvoke(
@@ -295,3 +297,37 @@ async def get_skill_validation_form(
         questions=form_questions,
         total_questions=len(form_questions),
     )
+
+
+@user_validation_questions_router.get("/{question_id}/answer/history")
+async def answer_input_validation_question(
+    question_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> List[Dict[str, Any]]:
+    async for session in get_session():
+        service = BaseService(UserValidationQuestions, session)
+        question = await service.get(question_id)
+        skill = await question.awaitable_attrs.skill
+        knowledge_base = await question.awaitable_attrs.knowledge_base
+        async for session in get_session():
+            question = await service.get(question_id)
+            skill = await question.awaitable_attrs.skill
+            knowledge_base = await question.awaitable_attrs.knowledge_base
+            try:
+                async with get_graph() as graph:
+                    all_chunks = []
+                    print("GRAPH")
+                    configurable_run = {
+                        "configurable": {"thread_id": question.question_uuid},
+                        "recursion_limit": 10,
+                    }
+                    print("BEFORE AGET STATE HISTORY")
+                    async for state_chunk in graph.aget_state_history(configurable_run):
+                        all_chunks.append(MatrixValidationState(**state_chunk[0]))
+                        print("AFTER AGET STATE HISTORY")
+                        print(f"STATE CHUNK {state_chunk}")
+                    return all_chunks
+            except Exception as e:
+                print(f"Error getting state history: {e}")
+                return []

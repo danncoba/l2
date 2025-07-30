@@ -9,6 +9,7 @@ __pycache__
 # Node artifact files
 node_modules/
 dist/
+logs/
 
 # Compiled Java class files
 *.class
