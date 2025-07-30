@@ -131,15 +131,17 @@ The system recognizes 7 levels of expertise:
 - Install Inspect AI: `pip install inspect-ai`
 - Ensure evaluation datasets are available in `evaluations/` directory
 
+### Evaluation Judge is LLM
+Evaluation is done with LLM as the judge. Very important part of evaluation process and generally validation is completeness
+level which we evaluate against heavily.
+- ```matrix_evaluation.py``` is the file containing inspect ai based evaluation scorer and solver running our langchain code
+
 ### Running Evaluations
 
 ```bash
 export PYTHONPATH=/your_local_path_of_the_root_of_project/:$PYTHONPATH
 inspect eval matrix_evaluation.py@matrix_validation_eval
 ```
-
-### Evaluation Judge is LLM
-Evaluation is done with 
 
 ### Checking the evaluations
 To check the evaluation results you can use default Inspect AI method
