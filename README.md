@@ -68,7 +68,7 @@ The Grading Agent uses a multi-dimensional assessment approach to evaluate user 
 
 - **Backend**: FastAPI with Python 3.13
 - **Database**: PostgreSQL with pgvector for embeddings
-- **AI/ML**: LangChain, LangGraph, OpenAI
+- **AI/ML**: LangChain, LangGraph, OpenAI through LiteLLM. GPT-4o is mostly used, o3-mini for generating questions and GTP-4.1 for backup if GPT-4o starts acting up. gpt-4o-mini has shown to be unreliable for complex task and complex state. Utilizing ReAcT type loop to investigate and validate expertise levels.
 - **Caching**: Redis
 - **Task Queue**: Celery
 - **Observability**: Langtrace
@@ -94,7 +94,7 @@ The system recognizes 7 levels of expertise:
 
 - Python 3.13
 - Docker and Docker Compose
-- OpenAI API key
+- LiteLLM API key
 
 ### Installation
 
@@ -131,10 +131,17 @@ The system recognizes 7 levels of expertise:
 - Install Inspect AI: `pip install inspect-ai`
 - Ensure evaluation datasets are available in `evaluations/` directory
 
+### Evaluation datasets
+Two datasets are available for full evaluation
+- ```evaluation_dataset.csv``` - most examples around 200 for full evaluation of the entire langgraph
+- ```evaluation_dataset_small.csv``` - some examples around 10 for full evaluation for smaller evaluation level
+
 ### Evaluation Judge is LLM
 Evaluation is done with LLM as the judge. Very important part of evaluation process and generally validation is completeness
 level which we evaluate against heavily.
 - ```matrix_evaluation.py``` is the file containing inspect ai based evaluation scorer and solver running our langchain code
+- Multiple evaluations exist. One for entire langgraph that tests entire process and evaluates against it
+- Individual evaluations for each of the agents/llm invokations for grading, reflection etc...
 
 ### Running Evaluations
 
@@ -150,3 +157,29 @@ inspect view
 ```
 
 This will start a local UI of inspect ai where you can see evaluation results
+
+### Why Inspect AI for Eval?
+I can make simple evaluations without any framework i can also use deep eval or inspect ai
+
+**Reason why inspect AI was choosen was because it's deeply integrated with langtrace and it can be displayed within langtrace.
+For this project this was not done as it's an overkill, but when building complex systems it can be very usefull.**
+
+**Additionally as this POC all the prompts are under single project without division of test, dev and other environments, which can be problematic in real scenarios, however this can easily be done with different projects within langtrace. While i have not made this division as again this is POC it's easy to make this separation with introduction of langtrace or something like langfuse or similar observability platforms**
+
+### What is left
+This is a POC and a lot of things can be done here
+
+For AI:
+- Knowledge base can be enriched substantially and as well the question generation! Reason why i have not done this is the i'm uncertain of level and depth of questions are required per each of the level or experience
+- Additional RAG pipelines can be added easily through SQL or vector dbs and agentic tool calls to call on additional quidance or preferences from the users (internal company guidance) to establish specific flows and enrich the prompt to tightly control the grading level or similar. This specific problem is very taste based, and my taste would differ than everyone elses. However i see a lot of possible upgrades in this case. I've partially added this through rules in Matrix Questions, however again this can be done in million ways
+- Fully agentic multi agent architectures like supervisor or network multiagent systems are more than possible here, and would even be preferential on more level of details and more guidance needs. However for this sample and POC are defenitelly an overkill and create a problem of increasing latency substantionally
+- MCP tooling. Just not needed in this case and POC, however would benefit here as tooling would be interchangeable
+- A2A as well, just an overkill for this case and POC.
+- General tool usage here for different agents. I do not see the need for it. I can put into langgraph state all the required data, only thing would be the need for if i'm getting the preferences, and i've explained here why i have not added that. This is something I'm most skeptic of should i add or not in this example
+
+For Application:
+- This is a never ending story what can be added. A lot of funcitonalities is not finished
+- We can add detail analytics
+- We can add pipelines for getting the data
+
+Evaluations: For 200 cases stated in the example there is the precision around 80% for all the cases there

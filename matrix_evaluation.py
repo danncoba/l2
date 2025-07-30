@@ -144,7 +144,7 @@ def matrix_validation_scorer():
 @task
 def matrix_validation_eval():
     return Task(
-        dataset=csv_dataset("evaluation_dataset_small.csv"),
+        dataset=csv_dataset("evaluation_dataset.csv"),
         plan=[matrix_validation_solver()],
         scorer=matrix_validation_scorer(),
         fail_on_error=False,
