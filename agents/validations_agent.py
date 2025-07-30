@@ -297,9 +297,7 @@ async def reflection_agent(state: MatrixValidationState) -> MatrixValidationStat
     :param state:
     :return:
     """
-    model = LLMChatBuilder(
-        state["model"], max_tokens=300
-    ).build()
+    model = LLMChatBuilder(state["model"], max_tokens=300).build()
     prompt_id = "cmdpiq6g500w8yrs5gop0vctp"
     grading_prompt = get_prompt_from_registry(prompt_id)
     msgs = convert_msg_request_to_llm_messages(state["messages"])
@@ -324,7 +322,6 @@ async def reflection_agent(state: MatrixValidationState) -> MatrixValidationStat
         **state,
         "messages": state.get("inner_messages", []) + [msg],
     }
-
 
 
 async def finish(state: MatrixValidationState) -> MatrixValidationState:

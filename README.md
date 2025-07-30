@@ -1,39 +1,80 @@
 # Morpheus @ HTEC
 
-An AI-powered skill matrix validation and guidance system that helps engineers assess and validate their technical expertise levels through intelligent conversations.
+An AI-powered skill matrix validation system that generates targeted questions to assess and validate engineers' technical expertise through intelligent conversations.
+The grading agent does not grade the answers it only validates are the answers correct or not based on provided answer within the context and generated questions
 
-## Overview
+## User Matrix Validation Process
 
-Morpheus is a FastAPI-based application that uses AI agents to guide engineers through skill assessment conversations, validate their expertise claims, and provide personalized feedback. The system employs multiple specialized agents working together to ensure accurate skill matrix population.
+Morpheus employs a sophisticated multi-agent system to validate user skill claims through dynamic question generation and assessment.
 
-## Key Features
+### Question Generation Process
 
-- **AI-Powered Skill Assessment**: Multi-agent system for validating user expertise through conversational interfaces
-- **Intelligent Guidance**: Provides contextual guidance and feedback based on user responses
-- **Skill Matrix Management**: Tracks and manages user skills across different expertise levels
-- **Automated Notifications**: Reminds users to complete their skill assessments
-- **Real-time Chat Interface**: Interactive conversations for skill validation
-- **Analytics & Monitoring**: Comprehensive observability with OpenTelemetry, Jaeger, and Grafana
+1. **Skill Analysis**: System analyzes user's claimed expertise level for specific skills
+2. **Dynamic Question Creation**: AI generates targeted questions based on:
+   - Claimed expertise level (1-7 scale)
+   - Skill domain and complexity
+   - Industry best practices and real-world scenarios 
+   - For this generation o3-mini has been used, as 4o and 4o-mini are extremely bad and mostly display the same questions no matter the difficulty or simplicity of the prompt
 
-## Architecture
+3. **Question Validation**: Generated questions are validated for:
+   - Appropriate difficulty level
+   - Relevance to claimed expertise
+   - Clear assessment criteria and provided necessary assignment knowledge
 
-### Core Components
+### User Validation Question Assignment
 
-- **Supervisor Agent**: Orchestrates the conversation flow and determines next steps
-- **Guidance Agent**: Provides educational content and skill-specific guidance
-- **Discrepancy Agent**: Identifies inconsistencies in user skill claims
-- **Feedback Agent**: Offers constructive feedback on user responses
-- **Grading Agent**: Evaluates and confirms user expertise levels
+**Assignment Process:**
+1. **Skill Prioritization**: System identifies which skills need validation based on and assigns to the user specific questions designed for this level of knowledge and specific skill
 
-### Tech Stack
+2. **Question Sequencing**: Questions are randomly choosen generally, however as this is POC they are displayed and asking for a validation
+
+### Validator Agent Grading System
+
+**Grading Agent Architecture:**
+The Grading Agent uses a multi-dimensional assessment approach to evaluate user responses and assign expertise levels.
+
+**Grading Process:**
+
+1. **Response Analysis**:
+   - Technical accuracy assessment
+   - Depth of understanding evaluation
+   - Comparison to the answer
+
+2. **Evidence Collection**:
+   - Specific examples provided
+   - Problem-solving approach
+   - Tool and technology familiarity
+   - Real-world experience indicators
+
+3 **Confidence Scoring**:
+   - High confidence: Clear evidence supporting claimed level
+   - Medium confidence: Some evidence with minor gaps
+   - Low confidence: Insufficient evidence, requires additional validation
+
+**Validation Criteria by Level:**
+- **Technical Knowledge**: Depth and accuracy of technical concepts
+- **Practical Experience**: Real-world application examples
+- **Problem Solving**: Approach to complex scenarios
+- **Best Practices**: Industry standard awareness
+- **Communication**: Ability to explain concepts clearly
+
+## Core Components
+
+- **Question Generator**: Creates targeted assessment questions
+- **Grading Agent**: Evaluates responses and assigns expertise levels
+- **Feedback Agent**: Provides constructive guidance for skill improvement
+
+## Tech Stack
 
 - **Backend**: FastAPI with Python 3.13
 - **Database**: PostgreSQL with pgvector for embeddings
 - **AI/ML**: LangChain, LangGraph, OpenAI
 - **Caching**: Redis
 - **Task Queue**: Celery
-- **Observability**: OpenTelemetry, Jaeger, Grafana, Loki
-- **Storage**: MinIO for file storage
+- **Observability**: Langtrace
+- **Prompt Library**: Langtrace
+- **Metrics Library**: Langtrace
+- **Evaluation Library**: Inspect AI
 
 ## Expertise Levels
 
@@ -67,10 +108,34 @@ The system recognizes 7 levels of expertise:
 ### API Access
 
 - **Main API**: http://localhost:8000
-- **Grafana Dashboard**: http://localhost:3000
-- **Jaeger UI**: http://localhost:16686
-- **MinIO Console**: http://localhost:9001
+- **FE Application**: http://localhost:5173
+- **Langtrace prompts and observability tool**: http://localhost:3000
 
-## Usage
+# How to use test
+- Start the docker compose with ```docker-compose up -d or docker compose up -d```. This will start all the required applications and setup the database for this application. Application is not completed on the FE side as it has a lot of possibilities and can be playeed around for ages
+- When initially loading application you will be presented with users you can choose you are logging in as. Please choose `Daniel Martinez` as db has been setup for this use case.
+- As i've created multiple samples generating multiple questions that can be created for each of the taxonomies will throw more than 10 k results to LiteLLM side which would be expensive to create in this case for POC. That's why please choose Daniel Martinez, as he has setup
+- You have validation questions there. Which is the AI that can be tested against.
+- The system will preserve the state of the messages so it can be revisited
 
-Users interact with the system through chat interfaces where AI agents guide them through skill assessment conversations, validate their expertise claims, and provide personalized learning recommendations.
+## Running Evaluations with Inspect AI
+
+### Prerequisites
+- Install Inspect AI: `pip install inspect-ai`
+- Ensure evaluation datasets are available in `evaluations/` directory
+
+### Running Evaluations
+
+```bash
+export PYTHONPATH=/your_local_path_of_the_root_of_project/:$PYTHONPATH
+inspect eval matrix_evaluation.py@matrix_validation_eval
+```
+
+
+### Checking the evaluations
+To check the evaluation results you can use default Inspect AI method
+```bash
+inspect view
+```
+
+This will start a local UI of inspect ai where you can see evaluation results

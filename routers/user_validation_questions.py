@@ -216,7 +216,7 @@ async def answer_input_validation_question(
             async with get_graph() as graph:
                 configurable_run = {
                     # "configurable": {"thread_id": question.question_uuid}, # This for correct state management
-                    "configurable": {"thread_id": uuid.uuid4()}, # This is for testing
+                    "configurable": {"thread_id": uuid.uuid4()},  # This is for testing
                     "recursion_limit": 10,
                 }
                 response = await graph.ainvoke(

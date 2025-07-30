@@ -1,14 +1,15 @@
-import pprint
 import sys
 import os
 import uuid
 import json
 
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 from langtrace_python_sdk import langtrace
 
 from dto.request.testing import MessagesRequestBase
 
-sys.path.insert(0, '/Users/danijeldjuric/Desktop/Projects/Solutions/l2work')
+sys.path.insert(0, "/Users/danijeldjuric/Desktop/Projects/Solutions/l2work")
 
 from dotenv import load_dotenv
 from inspect_ai import Task, task
@@ -17,6 +18,7 @@ from inspect_ai.scorer import scorer, Score, CORRECT, INCORRECT, Target, accurac
 from inspect_ai.solver import solver, TaskState
 from typing import TypedDict, Optional, Annotated
 from langgraph.graph.message import add_messages
+
 
 class MatrixValidationState(TypedDict):
     model: str
@@ -30,7 +32,13 @@ class MatrixValidationState(TypedDict):
     guidance_amount: int
     next: Annotated[list, add_messages]
 
+
 load_dotenv()
+
+LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
+LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
+LITE_MODEL = os.getenv("OPENAI_MODEL")
+LITE_OPENAI_O3_MODEL = os.getenv("LITE_OPENAI_O3_MODEL")
 
 LANGTRACE_API_KEY = os.getenv("LANGTRACE_API_KEY")
 LANGTRACE_HOST = os.getenv("LANGTRACE_HOST")
@@ -48,8 +56,7 @@ def matrix_validation_solver():
             msgs_typed = []
             for msg in input_data["messages"]:
                 typed_msg = MessagesRequestBase(
-                    role=msg["role"],
-                    message=msg["content"]
+                    role=msg["role"], message=msg["content"]
                 )
                 msgs_typed.append(typed_msg)
             input_data["messages"] = msgs_typed
@@ -69,48 +76,74 @@ def matrix_validation_solver():
             except LLMFormatError as e:
                 result = await graph.ainvoke(input_data, configurable)
 
-            
         # Extract final response
         if result.get("messages"):
             final_message = result["messages"][-1]
             response = final_message.message
         else:
             response = str(result)
-            
+
         state.output.completion = response
         return state
-    
+
     return solve
+
 
 @scorer(metrics=[accuracy()])
 def matrix_validation_scorer():
     async def score(state: TaskState, target: Target):
         print(f"SCORE STATE {state}")
         response = state.output.completion.lower()
+        print(f"Target -> {target.text}")
         expected = target.text.lower()
-        
-        # Simple keyword matching for evaluation categories
-        evaluation_keywords = {
-            "correct": ["correct", "accurate", "comprehensive", "good understanding"],
-            "partial": ["partial", "incomplete", "missing", "basic understanding"],
-            "incorrect": ["incorrect", "wrong", "misunderstood", "confused"]
-        }
-        
-        # Check if response aligns with expected evaluation
-        for category, keywords in evaluation_keywords.items():
-            if category in expected:
-                if any(keyword in response for keyword in keywords):
-                    return Score(value=CORRECT, answer=response)
-        
+
+        print("Expected and response")
+        print(f"{expected} -> Response : -> {response}")
+
+        template = ChatPromptTemplate.from_messages([
+            ("system", """
+            You are matching do the user message and ai message are similar in meaning!
+            Content itself does not need to match, the meaning has to be similar or same for them to be declared
+            as similar!
+            
+            Respond in json format:
+            is_similar: boolean, whether they are similar or not
+            """),
+            ("human", """
+             {expected}
+             """),
+            ("ai", """
+             {actual}
+             """)
+        ])
+        prompt = await template.ainvoke({"expected": expected, "actual": response})
+        model = ChatOpenAI(
+            model=LITE_MODEL,
+            base_url=LITE_LLM_URL,
+            api_key=LITE_LLM_API_KEY,
+            temperature=0,
+            top_p=1,
+            max_tokens=50,
+            stop_sequences=["\nObservation: "],
+        )
+        result = await model.ainvoke(prompt)
+        content = result.content
+        if content.startswith("```json"):
+            content = content.strip("```json").strip("```")
+        result_in_json = json.loads(content)
+        if result_in_json["is_similar"]:
+            return Score(value=CORRECT, answer=response)
+
         return Score(value=INCORRECT, answer=response)
-    
+
     return score
+
 
 @task
 def matrix_validation_eval():
     return Task(
-        dataset=csv_dataset("evaluation_dataset.csv"),
+        dataset=csv_dataset("evaluation_dataset_new.csv"),
         plan=[matrix_validation_solver()],
         scorer=matrix_validation_scorer(),
-        fail_on_error=False
+        fail_on_error=False,
     )
