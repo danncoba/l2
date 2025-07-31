@@ -1,5 +1,6 @@
 import os
 import re
+from collections import Counter
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import AsyncGenerator, Any, List, Optional, Literal
@@ -29,6 +30,10 @@ LITE_MODEL = os.getenv("OPENAI_MODEL")
 LITE_OPENAI_O3_MODEL = os.getenv("LITE_OPENAI_O3_MODEL")
 
 FINAL_ANSWER_STR = "Final Answer: "
+
+RECURSION_BREAK_STR = """
+Observation: We provided you with the response. You must conclude your final answer based on the information already provided!
+"""
 
 
 class LLMFormatError(Exception):
@@ -89,6 +94,9 @@ class MatrixValidationState(TypedDict):
     question_id: int
     question: str
     answer: str
+    safety_response: Optional[str] = None
+    split_response: Optional[str] = None
+    grader_response: Optional[str] = None
     rules: Optional[str] = None
     inner_messages: Annotated[list, add_messages]
     guidance_questions: Annotated[list, add_messages]
@@ -117,82 +125,13 @@ def parse_discussion(messages: List[MessagesRequestBase]) -> str:
     return full_discussion
 
 
-async def question_splitter(state: MatrixValidationState) -> MatrixValidationState:
-    """
-    Define parts of the question that needs to be answered
-    by the user. Returns the string representation
-    of the required logical units that the answer needs
-    to contain from the user to be successfully completed
-    :param state:
-    :return: the updated state
-    :rtype MatrixValidationState
-    """
-    model = LLMChatBuilder(state["model"]).build()
-    prompt_id = "cmdnbhy7c00jjyrs5i348rspq"
-    question_definition_prompt = get_prompt_from_registry(prompt_id)
-    prompt_template = ChatPromptTemplate.from_messages(
-        [("system", question_definition_prompt["value"])]
-    )
-    user_responses = []
-    counter = 0
-    for msg in state["messages"]:
-        if msg.role == "human":
-            counter += 1
-            user_responses.append(f"User Answer {counter}: {msg.message}\n")
-    print(f"SPLIT -> {state["inner_messages"]}")
-    prompt = await prompt_template.ainvoke(
-        {
-            "question": state["question"],
-            "answer": state["answer"],
-            "rules": state["rules"],
-            "user_responses": "\n".join(user_responses),
-        }
-    )
-    response = await model.ainvoke(prompt)
-    return {
-        **state,
-        "guidance_questions": state.get("guidance_questions", []) + [response],
-    }
-
-
-async def question_validator(state: MatrixValidationState) -> MatrixValidationState:
-    """
-    Validator that validates and checks that the question
-    is not leaking any unnecessary information to the user
-    and validates whether the we need to recheck the answer
-    :param state:
-    :return:
-    """
-    model = LLMChatBuilder(state["model"]).build()
-    prompt_id = "cmdncdcg900jpyrs54a73bh7v"
-    question_definition_prompt = get_prompt_from_registry(prompt_id)
-    prompt_template = ChatPromptTemplate.from_messages(
-        [("system", question_definition_prompt["value"])]
-    )
-    prompt = await prompt_template.ainvoke(
-        {
-            "correct_answer": state["answer"],
-            "questions": state["guidance_questions"][-1].content,
-        }
-    )
-    response = await model.ainvoke(prompt)
-    print(f"RESPONSE GRADING -> {response}")
-    match = re.search(r"(Observation:|\nObservation:)", response.content)
-    if not match:
-        raise LLMFormatError("Invalid response format")
-    print(f"FINISHED THIS SETUP -> {response}")
-    return {
-        **state,
-        "inner_messages": state.get("inner_messages", []) + [response],
-    }
-
-
 async def grader(state: MatrixValidationState) -> MatrixValidationState:
     model = LLMChatBuilder(state["model"]).build()
     prompt_id = "cmdnd3zhv00k0yrs5rvseaaeh"
     grader_prompt = get_prompt_from_registry(prompt_id)
+    msgs = convert_msg_request_to_llm_messages(state["messages"])
     prompt_template = ChatPromptTemplate.from_messages(
-        [("system", grader_prompt["value"])]
+        [("system", grader_prompt["value"])] + msgs
     )
     user_responses = []
     counter = 0
@@ -202,8 +141,7 @@ async def grader(state: MatrixValidationState) -> MatrixValidationState:
             user_responses.append(f"\nUser Answer {counter}: {msg.message}")
     prompt = await prompt_template.ainvoke(
         {
-            "grader_prompt": state["answer"],
-            "responses": user_responses,
+            "answer": state["answer"],
         }
     )
     response = await model.ainvoke(prompt)
@@ -212,33 +150,34 @@ async def grader(state: MatrixValidationState) -> MatrixValidationState:
         raise LLMFormatError("Invalid response format")
     return {
         **state,
-        "inner_messages": state.get("inner_messages", []) + [response],
+        "grader_response": response.content,
     }
 
 
 async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
     model = LLMChatBuilder(
-        state["model"], max_tokens=300, stop_sequences=["\Observation"]
+        state["model"], max_tokens=300, stop_sequences=["\nObservation"]
     ).build()
     agents = [
         Agent(
             name="split",
             description="Use this agent when you need clarification what exactly has been answered and what is left unanswered!",
             param="query: The question you want to split",
-        ),
-        Agent(
-            name="grade_user",
-            description="Use this agent to grade user responses! Use this grade to return the completeness level.",
-            param="User responses",
-        ),
+        )
     ]
     prompt_id = "cmdnantct00iwyrs5wqoa9nkv"
     grading_prompt = get_prompt_from_registry(prompt_id)
     msgs = convert_msg_request_to_llm_messages(state["messages"])
     discussion = parse_discussion(state["messages"])
     prompt_template = ChatPromptTemplate.from_messages(
-        [("system", grading_prompt["value"])]
+        [("system", grading_prompt["value"])] + msgs
     )
+    guidance = ""
+    if state["safety_response"] is not None:
+        guidance = f"""
+        Here are some instructions you should follow in your response:
+        {state["safety_response"]}
+        """
     print(f"INNER MESSAGES {state['inner_messages']}")
     agents_arr = [
         f"* name: {agent.name}, description: {agent.description}, params: {agent.param}"
@@ -251,7 +190,7 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
             "agent_scratchpad": "\n".join(
                 [msg.content for msg in state["inner_messages"]]
             ),
-            "input": discussion,
+            "guidance": guidance,
         }
     )
     response = await model.ainvoke(prompt)
@@ -287,7 +226,99 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
         **state,
         "messages": state.get("messages", []) + response_msgs,
         "inner_messages": state.get("inner_messages", []) + intermediate_msgs,
-        "next": next_step,
+        "next": state.get("next", []) + next_step,
+    }
+
+
+async def get_question_needs(state: MatrixValidationState) -> MatrixValidationState:
+    """
+    Define parts of the question that needs to be answered
+    by the user. Returns the string representation
+    of the required logical units that the answer needs
+    to contain from the user to be successfully completed
+    :param state:
+    :return: the updated state
+    :rtype MatrixValidationState
+    """
+    model = LLMChatBuilder(state["model"]).build()
+    prompt_id = "cmdnbhy7c00jjyrs5i348rspq"
+    question_definition_prompt = get_prompt_from_registry(prompt_id)
+    msgs = convert_msg_request_to_llm_messages(state["messages"])
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", question_definition_prompt["value"])] + msgs
+    )
+    user_responses = []
+    counter = 0
+    prompt = await prompt_template.ainvoke(
+        {
+            "question": state["question"],
+            "answer": state["answer"],
+            "rules": state["rules"],
+        }
+    )
+    response = await model.ainvoke(prompt)
+    return {
+        **state,
+        "split_response": response.content,
+    }
+
+
+async def question_validator(state: MatrixValidationState) -> MatrixValidationState:
+    """
+    Validator that validates and checks that the question
+    is not leaking any unnecessary information to the user
+    and validates whether the we need to recheck the answer
+    :param state:
+    :return:
+    """
+    model = LLMChatBuilder(state["model"]).build()
+    prompt_id = "cmdncdcg900jpyrs54a73bh7v"
+    question_definition_prompt = get_prompt_from_registry(prompt_id)
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", question_definition_prompt["value"])]
+    )
+    prompt = await prompt_template.ainvoke(
+        {
+            "correct_answer": state["answer"],
+            "questions": state["split_response"],
+            "instructions": state["safety_response"],
+        }
+    )
+    response = await model.ainvoke(prompt)
+    print(f"RESPONSE GRADING -> {response}")
+    content = response.content
+    match = re.search(r"(Observation:|\nObservation:)", content)
+    if not match:
+        content = f"\nObservation: {content}"
+    print(f"FINISHED THIS SETUP -> {response}")
+    return {
+        **state,
+        "inner_messages": state.get("inner_messages", []) + [response],
+    }
+
+
+async def safety_agent(state: MatrixValidationState) -> MatrixValidationState:
+    """
+
+    :param state:
+    :return:
+    """
+
+    model = LLMChatBuilder(state["model"], max_tokens=300).build()
+    prompt_id = "cmdr0133z00wiyrs5ab18a8sy"
+    safety_prompt = get_prompt_from_registry(prompt_id)
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            ("system", safety_prompt["value"]),
+            ("ai", state["question"]),
+            ("human", state["answer"]),
+        ]
+    )
+    prompt = await prompt_template.ainvoke({})
+    response = await model.ainvoke(prompt)
+    return {
+        **state,
+        "safety_response": response.content,
     }
 
 
@@ -328,14 +359,36 @@ async def finish(state: MatrixValidationState) -> MatrixValidationState:
     return state
 
 
+async def recursion_check(state: MatrixValidationState) -> MatrixValidationState:
+    return state
+
+
+async def break_from_recursion(state: MatrixValidationState) -> MatrixValidationState:
+    msgs = [
+        AIMessage(
+            content=RECURSION_BREAK_STR
+        )
+    ]
+    return {**state, "inner_messages": state.get("inner_messages", []) + msgs}
+
+
 async def route_request(
     state: MatrixValidationState,
-) -> Literal["finish", "split", "grader"]:
-    if len(state["next"]) > 0 and state["next"][-1] == "split":
-        return "split"
-    if len(state["next"]) > 0 and state["next"][-1] == "grader":
-        return "grader"
+) -> Literal["finish", "recursion_check"]:
+    if state["next"][-1] == "split":
+        return "recursion_check"
     return "finish"
+
+
+async def break_loop_decision(
+    state: MatrixValidationState,
+) -> Literal["break_recursion", "split"]:
+    counts = Counter(state["next"])
+    count_of_split = counts["split"]
+    print(f"BREAKING LOOP {count_of_split}")
+    if len(state["next"]) > 0 and count_of_split > 1:
+        return "break_recursion"
+    return "split"
 
 
 @asynccontextmanager
@@ -345,28 +398,35 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
             state_graph = StateGraph(MatrixValidationState)
             state_graph.add_node(
                 "split",
-                question_splitter,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
+                get_question_needs,
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
             )
             state_graph.add_node(
                 "evaluator",
                 evaluator,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
+            )
+            state_graph.add_node("recursion_check", recursion_check)
+            state_graph.add_node("break_recursion", break_from_recursion)
+            state_graph.add_node(
+                "safety",
+                safety_agent,
+                retry_policy=RetryPolicy(max_attempts=2, initial_interval=1.0),
             )
             state_graph.add_node(
                 "validator",
                 question_validator,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
             )
             state_graph.add_node(
                 "grader",
                 grader,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
             )
             state_graph.add_node(
                 "reflect",
                 reflection_agent,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=2.0),
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
             )
             state_graph.add_node(
                 "finish",
@@ -374,9 +434,12 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
             )
             state_graph.add_edge(START, "evaluator")
             state_graph.add_conditional_edges("evaluator", route_request)
-            state_graph.add_edge("split", "validator")
+            state_graph.add_conditional_edges("recursion_check", break_loop_decision)
+            state_graph.add_edge("break_recursion", "evaluator")
+            state_graph.add_edge("split", "grader")
+            state_graph.add_edge("grader", "safety")
+            state_graph.add_edge("safety", "validator")
             state_graph.add_edge("validator", "evaluator")
-            state_graph.add_edge("grader", "evaluator")
             state_graph.add_edge("finish", END)
             # state_graph.add_edge("finish", "reflect")
             # state_graph.add_edge("reflect", "evaluator")

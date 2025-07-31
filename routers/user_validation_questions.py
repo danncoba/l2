@@ -96,7 +96,7 @@ async def get_knowledge_base_question(
             configurable_run = {
                 # "configurable": {"thread_id": user_question.question_uuid},
                 "configurable": {"thread_id": uuid.uuid4()},
-                "recursion_limit": 10,
+                "recursion_limit": 16,
             }
             state = await graph.aget_state(configurable_run)
             print("STATE ->")
@@ -217,7 +217,7 @@ async def answer_input_validation_question(
                 configurable_run = {
                     # "configurable": {"thread_id": question.question_uuid}, # This for correct state management
                     "configurable": {"thread_id": uuid.uuid4()},  # This is for testing
-                    "recursion_limit": 10,
+                    "recursion_limit": 16,
                 }
                 response = await graph.ainvoke(
                     {
@@ -225,6 +225,7 @@ async def answer_input_validation_question(
                         "question": knowledge_base.question,
                         "answer": knowledge_base.answer,
                         "rules": knowledge_base.rules,
+                        "safety_response": None,
                         "question_id": knowledge_base.id,
                         "messages": dto.messages,
                         "inner_messages": [],
@@ -241,13 +242,14 @@ async def answer_input_validation_question(
                 else:
                     return MessagesRequestBase(role="human", message=msg.message)
         except LLMFormatError as format_err:  # LLMFormatErr
-            await answer_input_validation_question(
-                question_id=question_id,
-                dto=dto,
-                session=session,
-                current_user=current_user,
-                model="gpt-o3-mini",
-            )
+            raise ValueError("LLM THROWING ERRORS WITH FORMATTING")
+            # await answer_input_validation_question(
+            #     question_id=question_id,
+            #     dto=dto,
+            #     session=session,
+            #     current_user=current_user,
+            #     model="gpt-o3-mini",
+            # )
 
 
 @user_validation_questions_router.get(
@@ -300,7 +302,7 @@ async def get_skill_validation_form(
 
 
 @user_validation_questions_router.get("/{question_id}/answer/history")
-async def answer_input_validation_question(
+async def answer_input_validation_history(
     question_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -320,7 +322,7 @@ async def answer_input_validation_question(
                     print("GRAPH")
                     configurable_run = {
                         "configurable": {"thread_id": question.question_uuid},
-                        "recursion_limit": 10,
+                        "recursion_limit": 16,
                     }
                     print("BEFORE AGET STATE HISTORY")
                     async for state_chunk in graph.aget_state_history(configurable_run):

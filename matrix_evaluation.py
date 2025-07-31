@@ -3,21 +3,27 @@ import os
 import uuid
 import json
 
+from dotenv import load_dotenv
+from inspect_ai import Task, task, Epochs
+from inspect_ai.dataset import csv_dataset
+from inspect_ai.scorer import (
+    scorer,
+    Score,
+    CORRECT,
+    INCORRECT,
+    Target,
+    accuracy,
+    stderr,
+    mean,
+)
+from inspect_ai.solver import solver, TaskState
+from typing import TypedDict, Optional, Annotated
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from langgraph.graph.message import add_messages
 from langtrace_python_sdk import langtrace
 
 from dto.request.testing import MessagesRequestBase
-
-sys.path.insert(0, "/Users/danijeldjuric/Desktop/Projects/Solutions/l2work")
-
-from dotenv import load_dotenv
-from inspect_ai import Task, task
-from inspect_ai.dataset import csv_dataset
-from inspect_ai.scorer import scorer, Score, CORRECT, INCORRECT, Target, accuracy
-from inspect_ai.solver import solver, TaskState
-from typing import TypedDict, Optional, Annotated
-from langgraph.graph.message import add_messages
 
 
 class MatrixValidationState(TypedDict):
@@ -60,6 +66,7 @@ def matrix_validation_solver():
                 )
                 msgs_typed.append(typed_msg)
             input_data["messages"] = msgs_typed
+            input_data["safety_response"] = None
             print(input_data)
         except json.JSONDecodeError as e:
             print(f"JSON Error: {e}")
@@ -89,19 +96,16 @@ def matrix_validation_solver():
     return solve
 
 
-@scorer(metrics=[accuracy()])
+@scorer(metrics=[accuracy(), mean(), stderr()])
 def matrix_validation_scorer():
     async def score(state: TaskState, target: Target):
-        print(f"SCORE STATE {state}")
         response = state.output.completion.lower()
-        print(f"Target -> {target.text}")
         expected = target.text.lower()
-
-        print("Expected and response")
-        print(f"{expected} -> Response : -> {response}")
-
-        template = ChatPromptTemplate.from_messages([
-            ("system", """
+        template = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    """
             You are matching do the user message and ai message are similar in meaning!
             Content itself does not need to match, the meaning has to be similar or same for them to be declared
             as similar!
@@ -110,14 +114,22 @@ def matrix_validation_scorer():
             
             Respond in json format:
             is_similar: boolean, whether they are similar or not
-            """),
-            ("human", """
+            """,
+                ),
+                (
+                    "human",
+                    """
              {expected}
-             """),
-            ("ai", """
+             """,
+                ),
+                (
+                    "ai",
+                    """
              {actual}
-             """)
-        ])
+             """,
+                ),
+            ]
+        )
         prompt = await template.ainvoke({"expected": expected, "actual": response})
         model = ChatOpenAI(
             model=LITE_MODEL,
@@ -144,8 +156,9 @@ def matrix_validation_scorer():
 @task
 def matrix_validation_eval():
     return Task(
-        dataset=csv_dataset("evaluation_dataset.csv"),
+        dataset=csv_dataset("evaluation_dataset_small.csv"),
         plan=[matrix_validation_solver()],
         scorer=matrix_validation_scorer(),
         fail_on_error=False,
+        epochs=Epochs(3, ["mean"]),
     )
