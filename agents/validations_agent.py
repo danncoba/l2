@@ -237,11 +237,10 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
     grading_prompt = get_prompt_from_registry(prompt_id)
     trimmer = MsgTrimmer(state["model"])
     msgs = await trimmer.trim(state["messages"])
+    msgs = [AIMessage(msgs[0]), HumanMessage(msgs[1])]
     discussion = parse_discussion(state["messages"])
     if has_run_steps(state["next"]):
-        msgs = [
-            HumanMessage("Conclude on current information and provide Final Answer")
-        ]
+        msgs.append(HumanMessage("Conclude on current information and provide Final Answer"))
     prompt_template = ChatPromptTemplate.from_messages(
         [("system", grading_prompt["value"])] + msgs
     )
