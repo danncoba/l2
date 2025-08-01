@@ -3,10 +3,10 @@ import re
 from collections import Counter
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import AsyncGenerator, Any, List, Optional, Literal
+from typing import AsyncGenerator, Any, List, Optional, Literal, Tuple
 
 from dotenv import load_dotenv
-from langchain_core.messages import ToolMessage, AIMessage, HumanMessage
+from langchain_core.messages import ToolMessage, AIMessage, HumanMessage, trim_messages, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.constants import START, END
@@ -32,7 +32,7 @@ LITE_OPENAI_O3_MODEL = os.getenv("LITE_OPENAI_O3_MODEL")
 FINAL_ANSWER_STR = "Final Answer: "
 
 RECURSION_BREAK_STR = """
-Observation: We provided you with the response. You must conclude your final answer based on the information already provided!
+Observation: All information has been provided. I know the final answer!
 """
 
 
@@ -43,6 +43,23 @@ class LLMFormatError(Exception):
 
 
 class LLMChatBuilder:
+    """
+    Class for building and configuring chat language models.
+
+    This class provides a structured way to create instances of specific chat
+    language models with predefined configurations. Users can specify parameters
+    such as the model type, maximum token limit, and stop sequences during
+    initialization. The class handles the creation of model instances and manages
+    specific configurations internally.
+
+    :ivar model: The identifier for the chat language model to be used.
+    :type model: str
+    :ivar max_tokens: Maximum token config for chat model
+    :type max_tokens: int
+    :ivar stop_sequences: stop sequences for chat models
+    :type stop_sequences: List[str]
+    """
+
     def __init__(
         self, model: str, max_tokens: int = 500, stop_sequences: List[str] = None
     ):
@@ -89,6 +106,77 @@ class LLMChatBuilder:
         return additional_kw
 
 
+class MsgTrimmer:
+    """
+    A utility to manage and trim AI and human messages in a structured format.
+
+    This class is designed to streamline the process of handling messages
+    based on their roles (either 'ai' or 'human'). It allows for customizing
+    trimming behaviors through prompts and calculates message lengths to
+    make informed trimming decisions.
+
+    :ivar llm: Instance of LLM built using the provided model string.
+    :type llm: name of the openai litellm model
+    """
+
+    def __init__(self, model: str):
+        self.llm = LLMChatBuilder(model, max_tokens=200).build()
+        self.__ai_trimp_prompt_id = "cmdshls0h00xsyrs5f5fdzxkv"
+        self.__human_msgs_trim_prompt_id = ""
+
+    def set_ai_trim_prompt_id(self, ai_trim_prompt_id: str):
+        self.__ai_trimp_prompt_id = ai_trim_prompt_id
+
+    def set_human_trim_prompt_id(self, human_trim_prompt_id: str):
+        self.__human_msgs_trim_prompt_id = human_trim_prompt_id
+
+    def get_ai_trim_prompt(self) -> str:
+        return self.__get_langtrace_prompt_with_id(self.__ai_trimp_prompt_id)
+
+    def get_human_trim_prompt(selfs) -> str:
+        return self.__get_langtrace_prompt_with_id(self.__human_msgs_trim_prompt_id)
+
+    async def trim(
+        self, messages: List[MessagesRequestBase]
+    ) -> List[BaseMessage]:
+        len_of_ai_msgs = self.__get_msg_len_for_role(messages, "ai")
+        len_of_human_msgs = self.__get_msg_len_for_role(messages, "human")
+        print(f"DIFFERENT LENGTHS : {len_of_ai_msgs} -> {len_of_human_msgs}")
+        if len_of_ai_msgs > 2:
+            return [await self.__trim_ai_msgs(messages), messages[-1].message]
+        return [messages[-2].message, messages[-1].message]
+
+    def __get_langtrace_prompt_with_id(self, prompt_id: str):
+        prompt = get_prompt_from_registry(prompt_id)
+        return prompt["value"]
+
+    def __get_msg_len_for_role(
+        self, messages: List["MessagesRequestBase"], role: Literal["ai", "human"] = "ai"
+    ):
+        counter = 0
+        for msg in messages:
+            if msg.role == role:
+                counter += 1
+        return counter
+
+    async def __trim_ai_msgs(self, messages: List["MessagesRequestBase"]):
+        prompt = self.get_ai_trim_prompt()
+        prompt_template = ChatPromptTemplate.from_messages([("system", prompt)])
+        prompt = await prompt_template.ainvoke(
+            {"messages": "\n".join(self.__get_ai_messages(messages))}
+        )
+        response = await self.llm.ainvoke(prompt)
+        return response.content
+
+    def __get_ai_messages(self, messages: List["MessagesRequestBase"]) -> List[str]:
+        msgs = []
+        for msg in messages:
+            if msg.role == "ai":
+                msgs.append(msg.message)
+
+        return msgs
+
+
 class MatrixValidationState(TypedDict):
     model: str
     question_id: int
@@ -96,7 +184,6 @@ class MatrixValidationState(TypedDict):
     answer: str
     safety_response: Optional[str] = None
     split_response: Optional[str] = None
-    grader_response: Optional[str] = None
     rules: Optional[str] = None
     inner_messages: Annotated[list, add_messages]
     guidance_questions: Annotated[list, add_messages]
@@ -125,33 +212,14 @@ def parse_discussion(messages: List[MessagesRequestBase]) -> str:
     return full_discussion
 
 
-async def grader(state: MatrixValidationState) -> MatrixValidationState:
-    model = LLMChatBuilder(state["model"]).build()
-    prompt_id = "cmdnd3zhv00k0yrs5rvseaaeh"
-    grader_prompt = get_prompt_from_registry(prompt_id)
-    msgs = convert_msg_request_to_llm_messages(state["messages"])
-    prompt_template = ChatPromptTemplate.from_messages(
-        [("system", grader_prompt["value"])] + msgs
-    )
-    user_responses = []
-    counter = 0
-    for msg in state["messages"]:
-        if msg.role == "human":
-            counter += 1
-            user_responses.append(f"\nUser Answer {counter}: {msg.message}")
-    prompt = await prompt_template.ainvoke(
-        {
-            "answer": state["answer"],
-        }
-    )
-    response = await model.ainvoke(prompt)
-    match = re.search(r"(Observation:|\nObservation:)", response.content)
-    if not match:
-        raise LLMFormatError("Invalid response format")
-    return {
-        **state,
-        "grader_response": response.content,
-    }
+def has_run_steps(steps: List[str]) -> bool:
+    print(f"HAS RUN STEPS {steps}")
+    if len(steps) > 0:
+        counts = Counter(steps)
+        count_of_split = counts["split"]
+        if count_of_split > 1:
+            return True
+    return False
 
 
 async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
@@ -167,8 +235,13 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
     ]
     prompt_id = "cmdnantct00iwyrs5wqoa9nkv"
     grading_prompt = get_prompt_from_registry(prompt_id)
-    msgs = convert_msg_request_to_llm_messages(state["messages"])
+    trimmer = MsgTrimmer(state["model"])
+    msgs = await trimmer.trim(state["messages"])
     discussion = parse_discussion(state["messages"])
+    if has_run_steps(state["next"]):
+        msgs = [
+            HumanMessage("Conclude on current information and provide Final Answer")
+        ]
     prompt_template = ChatPromptTemplate.from_messages(
         [("system", grading_prompt["value"])] + msgs
     )
@@ -178,6 +251,7 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
         Here are some instructions you should follow in your response:
         {state["safety_response"]}
         """
+
     print(f"INNER MESSAGES {state['inner_messages']}")
     agents_arr = [
         f"* name: {agent.name}, description: {agent.description}, params: {agent.param}"
@@ -259,40 +333,6 @@ async def get_question_needs(state: MatrixValidationState) -> MatrixValidationSt
     response = await model.ainvoke(prompt)
     return {
         **state,
-        "split_response": response.content,
-    }
-
-
-async def question_validator(state: MatrixValidationState) -> MatrixValidationState:
-    """
-    Validator that validates and checks that the question
-    is not leaking any unnecessary information to the user
-    and validates whether the we need to recheck the answer
-    :param state:
-    :return:
-    """
-    model = LLMChatBuilder(state["model"]).build()
-    prompt_id = "cmdncdcg900jpyrs54a73bh7v"
-    question_definition_prompt = get_prompt_from_registry(prompt_id)
-    prompt_template = ChatPromptTemplate.from_messages(
-        [("system", question_definition_prompt["value"])]
-    )
-    prompt = await prompt_template.ainvoke(
-        {
-            "correct_answer": state["answer"],
-            "questions": state["split_response"],
-            "instructions": state["safety_response"],
-        }
-    )
-    response = await model.ainvoke(prompt)
-    print(f"RESPONSE GRADING -> {response}")
-    content = response.content
-    match = re.search(r"(Observation:|\nObservation:)", content)
-    if not match:
-        content = f"\nObservation: {content}"
-    print(f"FINISHED THIS SETUP -> {response}")
-    return {
-        **state,
         "inner_messages": state.get("inner_messages", []) + [response],
     }
 
@@ -364,11 +404,7 @@ async def recursion_check(state: MatrixValidationState) -> MatrixValidationState
 
 
 async def break_from_recursion(state: MatrixValidationState) -> MatrixValidationState:
-    msgs = [
-        AIMessage(
-            content=RECURSION_BREAK_STR
-        )
-    ]
+    msgs = [AIMessage(content=RECURSION_BREAK_STR)]
     return {**state, "inner_messages": state.get("inner_messages", []) + msgs}
 
 
@@ -414,16 +450,6 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
                 retry_policy=RetryPolicy(max_attempts=2, initial_interval=1.0),
             )
             state_graph.add_node(
-                "validator",
-                question_validator,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
-            )
-            state_graph.add_node(
-                "grader",
-                grader,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
-            )
-            state_graph.add_node(
                 "reflect",
                 reflection_agent,
                 retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
@@ -436,13 +462,9 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
             state_graph.add_conditional_edges("evaluator", route_request)
             state_graph.add_conditional_edges("recursion_check", break_loop_decision)
             state_graph.add_edge("break_recursion", "evaluator")
-            state_graph.add_edge("split", "grader")
-            state_graph.add_edge("grader", "safety")
-            state_graph.add_edge("safety", "validator")
-            state_graph.add_edge("validator", "evaluator")
+            state_graph.add_edge("split", "safety")
+            state_graph.add_edge("safety", "evaluator")
             state_graph.add_edge("finish", END)
-            # state_graph.add_edge("finish", "reflect")
-            # state_graph.add_edge("reflect", "evaluator")
             state_graph.add_edge("evaluator", END)
 
             graph = state_graph.compile(checkpointer=saver)
