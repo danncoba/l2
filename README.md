@@ -174,6 +174,7 @@ For this project this was not done as it's an overkill, but when building comple
 This is a POC and a lot of things can be done here
 
 For AI:
+
 - Knowledge base can be enriched substantially and as well the question generation! Reason why i have not done this is the i'm uncertain of level and depth of questions are required per each of the level or experience
 - Additional RAG pipelines can be added easily through SQL or vector dbs and agentic tool calls to call on additional quidance or preferences from the users (internal company guidance) to establish specific flows and enrich the prompt to tightly control the grading level or similar. This specific problem is very taste based, and my taste would differ than everyone elses. However i see a lot of possible upgrades in this case. I've partially added this through rules in Matrix Questions, however again this can be done in million ways
 - Fully agentic multi agent architectures like supervisor or network multiagent systems are more than possible here, and would even be preferential on more level of details and more guidance needs. However for this sample and POC are defenitelly an overkill and create a problem of increasing latency substantionally
