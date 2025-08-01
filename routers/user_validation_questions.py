@@ -1,7 +1,7 @@
 import pprint
 import uuid
 from typing import Annotated, List, Optional, Any, Dict
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import AIMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -94,8 +94,8 @@ async def get_knowledge_base_question(
         )
         async with get_graph() as graph:
             configurable_run = {
-                # "configurable": {"thread_id": user_question.question_uuid},
-                "configurable": {"thread_id": uuid.uuid4()},
+                "configurable": {"thread_id": user_question.question_uuid},
+                # "configurable": {"thread_id": uuid.uuid4()},
                 "recursion_limit": 16,
             }
             state = await graph.aget_state(configurable_run)
@@ -215,10 +215,16 @@ async def answer_input_validation_question(
         try:
             async with get_graph() as graph:
                 configurable_run = {
-                    # "configurable": {"thread_id": question.question_uuid}, # This for correct state management
-                    "configurable": {"thread_id": uuid.uuid4()},  # This is for testing
+                    "configurable": {
+                        "thread_id": question.question_uuid
+                    },  # This for correct state management
+                    # "configurable": {"thread_id": uuid.uuid4()},  # This is for testing
                     "recursion_limit": 16,
                 }
+                graph_state = await graph.aget_state(configurable_run)
+                if len(graph_state.interrupts) > 0:
+                    interrupt_val = graph_state.interrupts[0]
+                    raise HTTPException(status_code=403, detail=f"The answer to the question is {interrupt_val.value["completed_matrix_validation"]}. Waiting on validation from admin")
                 response = await graph.ainvoke(
                     {
                         "model": model,
@@ -231,25 +237,25 @@ async def answer_input_validation_question(
                         "inner_messages": [],
                         "guidance_questions": [],
                         "guidance_amount": 0,
+                        "completed": False,
+                        "final_grade": "Incorrect",
                         "next": [],
                     },
                     configurable_run,
                 )
-                pprint.pprint(f"Finalized response {response}")
                 msg = response["messages"][-1]
                 if isinstance(msg, AIMessage):
                     return MessagesRequestBase(role="ai", message=msg.content)
                 else:
                     return MessagesRequestBase(role="human", message=msg.message)
         except LLMFormatError as format_err:  # LLMFormatErr
-            raise ValueError("LLM THROWING ERRORS WITH FORMATTING")
-            # await answer_input_validation_question(
-            #     question_id=question_id,
-            #     dto=dto,
-            #     session=session,
-            #     current_user=current_user,
-            #     model="gpt-o3-mini",
-            # )
+            await answer_input_validation_question(
+                question_id=question_id,
+                dto=dto,
+                session=session,
+                current_user=current_user,
+                model="gpt-o3-mini",
+            )
 
 
 @user_validation_questions_router.get(

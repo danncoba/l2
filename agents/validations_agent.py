@@ -6,14 +6,20 @@ from dataclasses import dataclass
 from typing import AsyncGenerator, Any, List, Optional, Literal, Tuple
 
 from dotenv import load_dotenv
-from langchain_core.messages import ToolMessage, AIMessage, HumanMessage, trim_messages, BaseMessage
+from langchain_core.messages import (
+    ToolMessage,
+    AIMessage,
+    HumanMessage,
+    trim_messages,
+    BaseMessage,
+)
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from langgraph.graph import add_messages
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.types import RetryPolicy
+from langgraph.types import RetryPolicy, interrupt
 from langtrace_python_sdk import get_prompt_from_registry
 from sqlalchemy.sql.annotation import Annotated
 from typing_extensions import TypedDict
@@ -136,14 +142,14 @@ class MsgTrimmer:
     def get_human_trim_prompt(selfs) -> str:
         return self.__get_langtrace_prompt_with_id(self.__human_msgs_trim_prompt_id)
 
-    async def trim(
-        self, messages: List[MessagesRequestBase]
-    ) -> List[BaseMessage]:
+    async def trim(self, messages: List[MessagesRequestBase]) -> List[BaseMessage]:
         len_of_ai_msgs = self.__get_msg_len_for_role(messages, "ai")
         len_of_human_msgs = self.__get_msg_len_for_role(messages, "human")
-        print(f"DIFFERENT LENGTHS : {len_of_ai_msgs} -> {len_of_human_msgs}")
         if len_of_ai_msgs > 2:
-            return [await self.__trim_ai_msgs(messages), messages[-1].message]
+            return [
+                await self.__trim_ai_msgs(messages),
+                messages[-1].message,
+            ]
         return [messages[-2].message, messages[-1].message]
 
     def __get_langtrace_prompt_with_id(self, prompt_id: str):
@@ -163,7 +169,7 @@ class MsgTrimmer:
         prompt = self.get_ai_trim_prompt()
         prompt_template = ChatPromptTemplate.from_messages([("system", prompt)])
         prompt = await prompt_template.ainvoke(
-            {"messages": "\n".join(self.__get_ai_messages(messages))}
+            {"messages": "\n- ".join(self.__get_ai_messages(messages))}
         )
         response = await self.llm.ainvoke(prompt)
         return response.content
@@ -190,6 +196,8 @@ class MatrixValidationState(TypedDict):
     messages: Annotated[list, add_messages]
     guidance_amount: int
     next: Annotated[list, add_messages]
+    completed: bool
+    final_grade: Literal["Correct", "Incorrect"]
 
 
 @dataclass
@@ -213,7 +221,6 @@ def parse_discussion(messages: List[MessagesRequestBase]) -> str:
 
 
 def has_run_steps(steps: List[str]) -> bool:
-    print(f"HAS RUN STEPS {steps}")
     if len(steps) > 0:
         counts = Counter(steps)
         count_of_split = counts["split"]
@@ -240,7 +247,9 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
     msgs = [AIMessage(msgs[0]), HumanMessage(msgs[1])]
     discussion = parse_discussion(state["messages"])
     if has_run_steps(state["next"]):
-        msgs.append(HumanMessage("Conclude on current information and provide Final Answer"))
+        msgs.append(
+            HumanMessage("Conclude on current information and provide Final Answer")
+        )
     prompt_template = ChatPromptTemplate.from_messages(
         [("system", grading_prompt["value"])] + msgs
     )
@@ -251,7 +260,6 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
         {state["safety_response"]}
         """
 
-    print(f"INNER MESSAGES {state['inner_messages']}")
     agents_arr = [
         f"* name: {agent.name}, description: {agent.description}, params: {agent.param}"
         for agent in agents
@@ -270,36 +278,42 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
     next_step = []
     response_msgs = []
     intermediate_msgs = []
+    is_correct_answer = False
     if not FINAL_ANSWER_STR in response.content and not "Action: " in response.content:
         raise LLMFormatError("Not correct response format")
     if FINAL_ANSWER_STR in response.content or response.content.startswith(
         "Final Answer:"
     ):
         next_step.append("finish")
-        print(f"FINAL INTERMEDIATE STATE {state["inner_messages"]}")
         if FINAL_ANSWER_STR in response.content:
-            response_msgs.append(
-                MessagesRequestBase(
-                    role="ai",
-                    message=response.content.split(FINAL_ANSWER_STR)[1],
-                )
-            )
+            full_answer = response.content.split(FINAL_ANSWER_STR)[1]
+            percentage_match = re.search("Completeness: \d+?%", full_answer)
+            if percentage_match:
+                full_txt = percentage_match.group()
+                full_txt = full_txt.strip("Completeness: ").strip("%")
+                if int(full_txt) >= 60:
+                    is_correct_answer = True
+            response_msgs.append(MessagesRequestBase(role="ai", message=full_answer))
         elif response.content.startswith("Final Answer:"):
-            response_msgs.append(
-                MessagesRequestBase(
-                    role="ai", message=response.content.strip("Final Answer: ")
-                )
-            )
+            full_answer = response.content.split(FINAL_ANSWER_STR)[1]
+            percentage_match = re.search("Completeness: \d+(\.\d+)?%", full_answer)
+            if percentage_match:
+                full_txt = percentage_match.group()
+                full_txt = full_txt.strip("Completeness: ").strip("%")
+                if int(full_txt) >= 60:
+                    is_correct_answer = True
+            response_msgs.append(MessagesRequestBase(role="ai", message=full_answer))
     else:
         if "Action: " in response.content:
             next_step.append("split")
-            print(f"APPEND TO INTERMEDIATE STATE {response}")
             intermediate_msgs.append(response)
     return {
         **state,
         "messages": state.get("messages", []) + response_msgs,
         "inner_messages": state.get("inner_messages", []) + intermediate_msgs,
         "next": state.get("next", []) + next_step,
+        "completed": is_correct_answer,
+        "final_grade": "Correct" if is_correct_answer else "Incorrect",
     }
 
 
@@ -361,41 +375,17 @@ async def safety_agent(state: MatrixValidationState) -> MatrixValidationState:
     }
 
 
-async def reflection_agent(state: MatrixValidationState) -> MatrixValidationState:
-    """
-    Reflection agent criticizing the work of evaluator agent
-    :param state:
-    :return:
-    """
-    model = LLMChatBuilder(state["model"], max_tokens=300).build()
-    prompt_id = "cmdpiq6g500w8yrs5gop0vctp"
-    grading_prompt = get_prompt_from_registry(prompt_id)
-    msgs = convert_msg_request_to_llm_messages(state["messages"])
-    discussion = parse_discussion(state["messages"])
-    prompt_template = ChatPromptTemplate.from_messages(
-        [("system", grading_prompt["value"])]
-    )
-    print(f"INNER MESSAGES {state['inner_messages']}")
-    prompt = await prompt_template.ainvoke(
-        {
-            "question": state["question"],
-            "answer": state["answer"],
-            "user_responses": state["messages"][-1].message,
+async def finish(state: MatrixValidationState) -> MatrixValidationState:
+    msg_updates = []
+    if state["completed"]:
+        interrupt_val = {
+            "completed_matrix_validation": state["final_grade"],
         }
-    )
-    response = await model.ainvoke(prompt)
-    msg = MessagesRequestBase(
-        role="ai",
-        message=response.content,
-    )
+        msg_updates.append(interrupt(interrupt_val))
     return {
         **state,
-        "messages": state.get("inner_messages", []) + [msg],
+        "messages": state.get("messages", []) + msg_updates,
     }
-
-
-async def finish(state: MatrixValidationState) -> MatrixValidationState:
-    return state
 
 
 async def recursion_check(state: MatrixValidationState) -> MatrixValidationState:
@@ -420,7 +410,6 @@ async def break_loop_decision(
 ) -> Literal["break_recursion", "split"]:
     counts = Counter(state["next"])
     count_of_split = counts["split"]
-    print(f"BREAKING LOOP {count_of_split}")
     if len(state["next"]) > 0 and count_of_split > 1:
         return "break_recursion"
     return "split"
@@ -447,11 +436,6 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
                 "safety",
                 safety_agent,
                 retry_policy=RetryPolicy(max_attempts=2, initial_interval=1.0),
-            )
-            state_graph.add_node(
-                "reflect",
-                reflection_agent,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
             )
             state_graph.add_node(
                 "finish",
