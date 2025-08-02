@@ -183,6 +183,32 @@ class MsgTrimmer:
         return msgs
 
 
+class LLMAndPromptBuilder:
+
+    def __init__(self, model: str, prompt_id: str):
+        self.__model = model
+        self.__prompt_id = prompt_id
+
+    def set_model(self, model: str):
+        self.__model = model
+
+    def get_model(self):
+        return self.__model
+
+    def set_prompt_id(self, prompt_id: str):
+        self.__prompt_id = prompt_id
+
+    def get_propmt_id(self):
+        return self.__prompt_id
+
+    def build(self) -> Tuple:
+        llm = LLMChatBuilder(
+            self.__model, max_tokens=300, stop_sequences=["\nObservation"]
+        ).build()
+        prompt = get_prompt_from_registry(self.__prompt_id)
+        return llm, prompt
+
+
 class MatrixValidationState(TypedDict):
     model: str
     question_id: int
@@ -198,6 +224,7 @@ class MatrixValidationState(TypedDict):
     next: Annotated[list, add_messages]
     completed: bool
     final_grade: Literal["Correct", "Incorrect"]
+    monitor: Optional[str] = None
 
 
 @dataclass
@@ -227,6 +254,25 @@ def has_run_steps(steps: List[str]) -> bool:
         if count_of_split > 1:
             return True
     return False
+
+
+async def start_execution(state: MatrixValidationState) -> MatrixValidationState:
+    return state
+
+
+async def monitor_detector(state: MatrixValidationState) -> MatrixValidationState:
+    llm = LLMChatBuilder(
+        state["model"], max_tokens=300, stop_sequences=["\nObservation"]
+    ).build()
+    prompt_id = "cmdu0li9u014syrs5ds86grzz"
+    monitor_prompt = get_prompt_from_registry(prompt_id)
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", monitor_prompt["value"]), ("human", state["messages"][-1].message)]
+    )
+    prompt = await prompt_template.ainvoke({"topic": state["question"]})
+    response = await llm.ainvoke(prompt)
+    print("MONITOR RESPONSE {response}")
+    return {"monitor": response.content}
 
 
 async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
@@ -307,8 +353,8 @@ async def evaluator(state: MatrixValidationState) -> MatrixValidationState:
         if "Action: " in response.content:
             next_step.append("split")
             intermediate_msgs.append(response)
+    print("BEFORE EVALUATOR RETURN")
     return {
-        **state,
         "messages": state.get("messages", []) + response_msgs,
         "inner_messages": state.get("inner_messages", []) + intermediate_msgs,
         "next": state.get("next", []) + next_step,
@@ -344,8 +390,10 @@ async def get_question_needs(state: MatrixValidationState) -> MatrixValidationSt
         }
     )
     response = await model.ainvoke(prompt)
+    print("BEFORE SPLIT RETURN")
+    if not response.content.startswith("Observation: "):
+        raise LLMFormatError("split action invalid response format")
     return {
-        **state,
         "inner_messages": state.get("inner_messages", []) + [response],
     }
 
@@ -369,8 +417,8 @@ async def safety_agent(state: MatrixValidationState) -> MatrixValidationState:
     )
     prompt = await prompt_template.ainvoke({})
     response = await model.ainvoke(prompt)
+    print("BEFORE SAFETY RETURN")
     return {
-        **state,
         "safety_response": response.content,
     }
 
@@ -383,13 +431,16 @@ async def finish(state: MatrixValidationState) -> MatrixValidationState:
         }
         msg_updates.append(interrupt(interrupt_val))
     return {
-        **state,
         "messages": state.get("messages", []) + msg_updates,
     }
 
 
 async def recursion_check(state: MatrixValidationState) -> MatrixValidationState:
-    return state
+    return {}
+
+
+async def run_all_checks(state: MatrixValidationState) -> MatrixValidationState:
+    return {}
 
 
 async def break_from_recursion(state: MatrixValidationState) -> MatrixValidationState:
@@ -407,12 +458,12 @@ async def route_request(
 
 async def break_loop_decision(
     state: MatrixValidationState,
-) -> Literal["break_recursion", "split"]:
+) -> Literal["break_recursion", "run_checks"]:
     counts = Counter(state["next"])
     count_of_split = counts["split"]
     if len(state["next"]) > 0 and count_of_split > 1:
         return "break_recursion"
-    return "split"
+    return "run_checks"
 
 
 @asynccontextmanager
@@ -420,15 +471,21 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
     try:
         async with get_checkpointer() as saver:
             state_graph = StateGraph(MatrixValidationState)
+            state_graph.add_node("start_exec", start_execution)
+            state_graph.add_node("monitor", monitor_detector)
+            state_graph.add_node(
+                "evaluator",
+                evaluator,
+                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
+            )
             state_graph.add_node(
                 "split",
                 get_question_needs,
                 retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
             )
             state_graph.add_node(
-                "evaluator",
-                evaluator,
-                retry_policy=RetryPolicy(max_attempts=4, initial_interval=1.0),
+                "run_checks",
+                run_all_checks,
             )
             state_graph.add_node("recursion_check", recursion_check)
             state_graph.add_node("break_recursion", break_from_recursion)
@@ -441,14 +498,19 @@ async def get_graph() -> AsyncGenerator[CompiledStateGraph, Any]:
                 "finish",
                 finish,
             )
-            state_graph.add_edge(START, "evaluator")
+            state_graph.add_edge(START, "start_exec")
+            state_graph.add_edge("start_exec", "evaluator")
+            state_graph.add_edge("start_exec", "monitor")
             state_graph.add_conditional_edges("evaluator", route_request)
             state_graph.add_conditional_edges("recursion_check", break_loop_decision)
             state_graph.add_edge("break_recursion", "evaluator")
-            state_graph.add_edge("split", "safety")
+            state_graph.add_edge("run_checks", "split")
+            state_graph.add_edge("run_checks", "safety")
+            state_graph.add_edge("split", "evaluator")
             state_graph.add_edge("safety", "evaluator")
+            state_graph.add_edge("monitor", "finish")
+            state_graph.add_edge("evaluator", "finish")
             state_graph.add_edge("finish", END)
-            state_graph.add_edge("evaluator", END)
 
             graph = state_graph.compile(checkpointer=saver)
             yield graph

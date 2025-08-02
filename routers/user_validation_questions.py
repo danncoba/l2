@@ -3,6 +3,7 @@ import uuid
 from typing import Annotated, List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import AIMessage
+from langgraph.errors import GraphRecursionError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.validations_agent import get_graph, LLMFormatError, MatrixValidationState
@@ -29,7 +30,6 @@ user_validation_questions_router = APIRouter(
     prefix="/api/v1/user/validation-questions",
     tags=["User Validation Questions"],
 )
-
 
 FINAL_ANSWER = "Final Answer: "
 
@@ -96,7 +96,7 @@ async def get_knowledge_base_question(
             configurable_run = {
                 "configurable": {"thread_id": user_question.question_uuid},
                 # "configurable": {"thread_id": uuid.uuid4()},
-                "recursion_limit": 16,
+                "recursion_limit": 25,
             }
             state = await graph.aget_state(configurable_run)
             print("STATE ->")
@@ -212,8 +212,8 @@ async def answer_input_validation_question(
         question = await service.get(question_id)
         skill = await question.awaitable_attrs.skill
         knowledge_base = await question.awaitable_attrs.knowledge_base
-        try:
-            async with get_graph() as graph:
+        async with get_graph() as graph:
+            try:
                 configurable_run = {
                     "configurable": {
                         "thread_id": question.question_uuid
@@ -224,7 +224,10 @@ async def answer_input_validation_question(
                 graph_state = await graph.aget_state(configurable_run)
                 if len(graph_state.interrupts) > 0:
                     interrupt_val = graph_state.interrupts[0]
-                    raise HTTPException(status_code=403, detail=f"The answer to the question is {interrupt_val.value["completed_matrix_validation"]}. Waiting on validation from admin")
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"The answer to the question is {interrupt_val.value["completed_matrix_validation"]}. Waiting on validation from admin",
+                    )
                 response = await graph.ainvoke(
                     {
                         "model": model,
@@ -240,6 +243,7 @@ async def answer_input_validation_question(
                         "completed": False,
                         "final_grade": "Incorrect",
                         "next": [],
+                        "monitor": None,
                     },
                     configurable_run,
                 )
@@ -248,14 +252,15 @@ async def answer_input_validation_question(
                     return MessagesRequestBase(role="ai", message=msg.content)
                 else:
                     return MessagesRequestBase(role="human", message=msg.message)
-        except LLMFormatError as format_err:  # LLMFormatErr
-            await answer_input_validation_question(
-                question_id=question_id,
-                dto=dto,
-                session=session,
-                current_user=current_user,
-                model="gpt-o3-mini",
-            )
+
+            except LLMFormatError as format_err:  # LLMFormatErr
+                await answer_input_validation_question(
+                    question_id=question_id,
+                    dto=dto,
+                    session=session,
+                    current_user=current_user,
+                    model="gpt-o3-mini",
+                )
 
 
 @user_validation_questions_router.get(
@@ -328,7 +333,7 @@ async def answer_input_validation_history(
                     print("GRAPH")
                     configurable_run = {
                         "configurable": {"thread_id": question.question_uuid},
-                        "recursion_limit": 16,
+                        "recursion_limit": 25,
                     }
                     print("BEFORE AGET STATE HISTORY")
                     async for state_chunk in graph.aget_state_history(configurable_run):

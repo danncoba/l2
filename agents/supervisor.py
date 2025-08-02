@@ -13,7 +13,6 @@ from typing import (
 )
 
 from dotenv import load_dotenv
-from langchain_community.tools import TavilySearchResults
 from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import StructuredTool, render_text_description
@@ -36,8 +35,6 @@ from tools.tools import (
 from utils.common import convert_agent_msg_to_llm_message
 
 load_dotenv()
-
-search = TavilySearchResults()
 
 LITE_LLM_API_KEY = os.getenv("OPENAI_API_KEY")
 LITE_LLM_URL = os.getenv("OPENAI_BASE_URL")
@@ -473,7 +470,6 @@ async def guidance_agent(state: SupervisorState) -> SupervisorState:
     """
     print("\n\n\nENTERING GUIDANCE\n\n\n")
     tools = [
-        search,
         StructuredTool.from_function(
             name="get_grades_or_expertise",
             function=get_grades_or_expertise,
