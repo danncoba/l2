@@ -87,8 +87,7 @@ class LLMChatBuilder:
             temperature=0,
             top_p=1,
             max_tokens=self.__max_tokens,
-            stop_sequences=["\nObservation: "],
-            # **additional_kw
+            **additional_kw,
         )
         return model
 
@@ -145,7 +144,7 @@ class MsgTrimmer:
     async def trim(self, messages: List[MessagesRequestBase]) -> List[BaseMessage]:
         len_of_ai_msgs = self.__get_msg_len_for_role(messages, "ai")
         len_of_human_msgs = self.__get_msg_len_for_role(messages, "human")
-        if len_of_ai_msgs > 2:
+        if len_of_ai_msgs >= 2:
             return [
                 await self.__trim_ai_msgs(messages),
                 messages[-1].message,
@@ -181,32 +180,6 @@ class MsgTrimmer:
                 msgs.append(msg.message)
 
         return msgs
-
-
-class LLMAndPromptBuilder:
-
-    def __init__(self, model: str, prompt_id: str):
-        self.__model = model
-        self.__prompt_id = prompt_id
-
-    def set_model(self, model: str):
-        self.__model = model
-
-    def get_model(self):
-        return self.__model
-
-    def set_prompt_id(self, prompt_id: str):
-        self.__prompt_id = prompt_id
-
-    def get_propmt_id(self):
-        return self.__prompt_id
-
-    def build(self) -> Tuple:
-        llm = LLMChatBuilder(
-            self.__model, max_tokens=300, stop_sequences=["\nObservation"]
-        ).build()
-        prompt = get_prompt_from_registry(self.__prompt_id)
-        return llm, prompt
 
 
 class MatrixValidationState(TypedDict):
@@ -271,7 +244,6 @@ async def monitor_detector(state: MatrixValidationState) -> MatrixValidationStat
     )
     prompt = await prompt_template.ainvoke({"topic": state["question"]})
     response = await llm.ainvoke(prompt)
-    print("MONITOR RESPONSE {response}")
     return {"monitor": response.content}
 
 
@@ -425,7 +397,7 @@ async def safety_agent(state: MatrixValidationState) -> MatrixValidationState:
 
 async def finish(state: MatrixValidationState) -> MatrixValidationState:
     msg_updates = []
-    if state["completed"]:
+    if state["completed"] or len(state["messages"]) >= 8:
         interrupt_val = {
             "completed_matrix_validation": state["final_grade"],
         }

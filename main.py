@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from langtrace_python_sdk import langtrace
 
 from routers.admin_matrix_knowledge import admin_matrix_knowledge_router
+from routers.admin_validation_questions import admin_validation_questions_router
 from routers.analytics import analytics_router
 from routers.configs import config_router
 from routers.grades import grades_router
@@ -58,6 +59,7 @@ app.add_middleware(
 app.add_middleware(TraceIdMiddleware)
 
 app.include_router(admin_matrix_knowledge_router)
+app.include_router(admin_validation_questions_router)
 app.include_router(user_validation_questions_router)
 app.include_router(profile_router)
 app.include_router(users_router)

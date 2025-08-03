@@ -313,6 +313,9 @@ class UserValidationQuestions(AsyncAttrs, SQLModel, table=True):
         sa_column=Column(String(100), nullable=False, unique=False)
     )
     status: str = Field(sa_column=Column(String(100), nullable=False, unique=False))
+    answer_correct: str = Field(
+        sa_column=Column(Boolean, nullable=False, default=False, insert_default=False)
+    )
     knowledge_base_id: int = Field(
         sa_column=Column(
             BigInteger, ForeignKey("matrix_skill_knowledgebase.id"), nullable=False

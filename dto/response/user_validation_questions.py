@@ -47,6 +47,8 @@ class UserValidationQuestionResponse(BaseModel):
     user: UserResponseBase
     knowledge_base: UserKnowledgeBaseResponse
     created_at: datetime
+    status: str
+    answer_correct: bool
 
 
 class KnowledgeBaseQuestionResponse(BaseModel):
@@ -79,3 +81,9 @@ class SkillFormResponse(BaseModel):
     questions: List[SkillFormQuestionResponse]
     total_questions: int
     current_step: int = 1
+
+
+class AdminValidationQuestionsGroupedResponse(BaseModel):
+    user: UserResponseBase
+    questions: List[UserValidationQuestionResponse]
+    total_questions: int

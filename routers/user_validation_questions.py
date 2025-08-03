@@ -1,6 +1,8 @@
 import pprint
 import uuid
 from typing import Annotated, List, Optional, Any, Dict
+
+import openai
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import AIMessage
 from langgraph.errors import GraphRecursionError
@@ -9,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agents.validations_agent import get_graph, LLMFormatError, MatrixValidationState
 from db.db import get_session
 from db.models import UserValidationQuestions, MatrixSkillKnowledgeBase, User
+from dto.inner.user_validation_questions import UserValidationQuestionUpdateDTO
 from dto.request.testing import MessagesRequestBase
 from dto.request.user_validation_questions import (
     MultiOptionQuestionRequest,
@@ -47,6 +50,7 @@ async def get_user_validation_questions(
         filters={"user_id": current_user.id},
         limit=common["limit"],
         offset=common["offset"],
+        order_by=[UserValidationQuestions.created_at.asc()]
     )
     user, skill, knowledge_base = None, None, None
     full_questions = []
@@ -208,7 +212,9 @@ async def answer_input_validation_question(
     model: str = "gpt-4o",
 ) -> MessagesRequestBase:
     async for session in get_session():
-        service = BaseService(UserValidationQuestions, session)
+        service: BaseService[
+            UserValidationQuestions, int, UserValidationQuestionUpdateDTO, Any
+        ] = BaseService(UserValidationQuestions, session)
         question = await service.get(question_id)
         skill = await question.awaitable_attrs.skill
         knowledge_base = await question.awaitable_attrs.knowledge_base
@@ -248,6 +254,14 @@ async def answer_input_validation_question(
                     configurable_run,
                 )
                 msg = response["messages"][-1]
+                if "__interrupt__" in response:
+                    print("INTERRUPT FOR HUMAN IN THE LOOP")
+                    print(f"Interrupt Value {response["__interrupt__"]}")
+                    update_dto = await service.update(question_id, UserValidationQuestionUpdateDTO(
+                        status="waiting_admin",
+                        answer_correct=True if response["final_grade"] == "Correct" else False
+                    ))
+
                 if isinstance(msg, AIMessage):
                     return MessagesRequestBase(role="ai", message=msg.content)
                 else:
@@ -261,6 +275,13 @@ async def answer_input_validation_question(
                     current_user=current_user,
                     model="gpt-o3-mini",
                 )
+            except (openai.PermissionDeniedError, GraphRecursionError) as e:
+                state = await graph.aget_state(configurable_run)
+                values = state[0]
+                print(f"State before removing last message {values}")
+                values["messages"].pop()
+                await graph.aupdate_state(configurable_run, values)
+                raise HTTPException(status_code=403, detail=e.message)
 
 
 @user_validation_questions_router.get(

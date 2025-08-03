@@ -6,4 +6,4 @@ looking to create a router and routes start within routers folder
 
 # DAO Layer
 Utilize BaseService for most DAO operations if possible, enabled by SQL Model ORM
-Utilize SQLModel ORM as the second option and under
+Utilize SQLModel ORM as the second option
