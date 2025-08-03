@@ -123,7 +123,12 @@ async def get_knowledge_base_question(
             ]
         print("MSGS ->")
         pprint.pprint(state[0])
-        return KnowledgeBaseQuestionResponse(**response_data, messages=messages)
+        return KnowledgeBaseQuestionResponse(
+            **response_data,
+            messages=messages,
+            status=user_question.status,
+            answer_correct=user_question.answer_correct,
+        )
     except Exception as e:
         from fastapi import HTTPException
 

@@ -60,6 +60,8 @@ class KnowledgeBaseQuestionResponse(BaseModel):
     messages: List[MessagesRequestBase] = []
     options: Optional[List[Dict[str, Any]]]
     rules: Optional[str] = None
+    status: str
+    answer_correct: bool
     question_type: str
     is_code_question: bool
     created_at: datetime
