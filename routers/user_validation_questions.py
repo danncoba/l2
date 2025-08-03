@@ -50,7 +50,7 @@ async def get_user_validation_questions(
         filters={"user_id": current_user.id},
         limit=common["limit"],
         offset=common["offset"],
-        order_by=[UserValidationQuestions.created_at.asc()]
+        order_by=[UserValidationQuestions.created_at.asc()],
     )
     user, skill, knowledge_base = None, None, None
     full_questions = []
@@ -257,10 +257,15 @@ async def answer_input_validation_question(
                 if "__interrupt__" in response:
                     print("INTERRUPT FOR HUMAN IN THE LOOP")
                     print(f"Interrupt Value {response["__interrupt__"]}")
-                    update_dto = await service.update(question_id, UserValidationQuestionUpdateDTO(
-                        status="waiting_admin",
-                        answer_correct=True if response["final_grade"] == "Correct" else False
-                    ))
+                    update_dto = await service.update(
+                        question_id,
+                        UserValidationQuestionUpdateDTO(
+                            status="waiting_admin",
+                            answer_correct=(
+                                True if response["final_grade"] == "Correct" else False
+                            ),
+                        ),
+                    )
 
                 if isinstance(msg, AIMessage):
                     return MessagesRequestBase(role="ai", message=msg.content)
