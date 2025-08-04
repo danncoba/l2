@@ -344,7 +344,7 @@ async def generate_validation_questions_for_users():
                 SELECT id FROM matrix_skill_knowledgebase 
                 WHERE skill_id = :skill_id AND difficulty_level = :difficulty_level
                 ORDER BY RANDOM() LIMIT :limit
-            """
+                """
             )
 
             questions_result = await session.execute(

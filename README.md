@@ -15,6 +15,8 @@ Morpheus employs a sophisticated multi-agent system to validate user skill claim
    - Skill domain and complexity
    - Industry best practices and real-world scenarios 
    - For this generation o3-mini has been used, as 4o and 4o-mini are extremely bad and mostly display the same questions no matter the difficulty or simplicity of the prompt
+   - Questions are generated through background tasks running with celery. This generation is now disabled and commented out as it needs to create millions of requests for this purpose to complete it
+   - Questions are assigned to each of the users through random choosing of the questions for specific skill and expertise level
 
 3. **Question Validation**: Generated questions are validated for:
    - Appropriate difficulty level

@@ -1,10 +1,12 @@
 import os
+import io
 from enum import Enum
 from abc import ABC, abstractmethod
 from typing import Optional, Self
 
 from dotenv import load_dotenv
 from minio import Minio
+from fastapi import UploadFile
 
 load_dotenv()
 
@@ -12,11 +14,11 @@ load_dotenv()
 class BaseUploader(ABC):
 
     @abstractmethod
-    def put_file(self):
+    async def put_file(self, bucket_name: str, object_name: str, file: UploadFile) -> str:
         raise NotImplementedError()
 
     @abstractmethod
-    def get_file(self, file_path):
+    def get_file(self, bucket_name: str, object_name: str):
         raise NotImplementedError()
 
 
@@ -38,20 +40,41 @@ class MinioUploader(BaseUploader):
             secure=secure_minio,  # Use secure connection (HTTPS)
         )
 
-    def put_file(self):
-        pass
+    async def put_file(self, bucket_name: str, object_name: str, file: UploadFile) -> str:
+        """Upload file to MinIO"""
+        try:
+            # Ensure bucket exists
+            if not self.client.bucket_exists(bucket_name):
+                self.client.make_bucket(bucket_name)
+            
+            # Upload file
+            content = await file.read()
+            self.client.put_object(
+                bucket_name,
+                object_name,
+                io.BytesIO(content),
+                length=len(content),
+                content_type=file.content_type
+            )
+            return f"{bucket_name}/{object_name}"
+        except Exception as e:
+            raise Exception(f"Failed to upload file: {str(e)}")
 
-    def get_file(self, file_path):
-        pass
+    def get_file(self, bucket_name: str, object_name: str):
+        """Get file from MinIO"""
+        try:
+            return self.client.get_object(bucket_name, object_name)
+        except Exception as e:
+            raise Exception(f"Failed to get file: {str(e)}")
 
 
 class EmptyUploader(BaseUploader):
 
-    def put_file(self):
-        pass
+    async def put_file(self, bucket_name: str, object_name: str, file: UploadFile) -> str:
+        return "empty_uploader"
 
-    def get_file(self, file_path):
-        pass
+    def get_file(self, bucket_name: str, object_name: str):
+        return None
 
 
 class UploaderFactory:

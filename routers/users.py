@@ -1,7 +1,7 @@
 import uuid
-from typing import Sequence, Annotated, Optional, Any
+from typing import Sequence, Annotated, Optional, Any, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.params import Depends
 from fastapi.security import HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,8 @@ from db.models import User, MatrixChat
 from dto.request.users import UserCreateRequest, UserRequestBase
 from dto.response.users import UserResponseBase, FullUserResponseBase
 from service.service import BaseService
+from service.file_processor import FileProcessor
+from service.uploader import UploaderFactory, UploaderType
 from security import security, get_current_user
 from tasks import get_start_and_end
 from utils.common import common_parameters
@@ -94,12 +96,44 @@ async def choose_user(
     return FullUserResponseBase(**user.model_dump())
 
 
-@users_router.post("/upload", response_model=FullUserResponseBase)
-async def upload_file(
+@users_router.post("/upload", response_model=List[FullUserResponseBase])
+async def upload_users(
     session: Annotated[AsyncSession, Depends(get_session)],
     credentials: Annotated[HTTPBasicCredentials, Depends(security)],
-) -> FullUserResponseBase:
-    pass
+    file: UploadFile = File(...),
+) -> List[FullUserResponseBase]:
+    """Upload users from CSV or Excel file"""
+    # Upload file to MinIO
+    uploader = UploaderFactory().set_uploader_type(UploaderType.MINIO).build()
+    await uploader.put_file("users", file.filename, file)
+    
+    # Process file
+    file.file.seek(0)  # Reset file pointer
+    data = await FileProcessor.process_csv_excel(file)
+    
+    # Create users
+    service: BaseService[User, int, UserCreateRequest, UserCreateRequest] = BaseService(
+        User, session
+    )
+    created_users = []
+    
+    for user_data in data:
+        # Validate required fields
+        required_fields = ['first_name', 'last_name', 'email', 'password']
+        if not all(field in user_data for field in required_fields):
+            raise HTTPException(status_code=400, detail=f"Missing required fields: {required_fields}")
+        
+        user_request = UserCreateRequest(
+            first_name=str(user_data['first_name']),
+            last_name=str(user_data['last_name']),
+            email=str(user_data['email']),
+            password=str(user_data['password']),
+            is_admin=bool(user_data.get('is_admin', False))
+        )
+        created_user = await service.create(user_request)
+        created_users.append(FullUserResponseBase(**created_user.model_dump()))
+    
+    return created_users
 
 
 @users_router.get("/test/test", response_model=Any)

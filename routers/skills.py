@@ -1,6 +1,6 @@
 from typing import Annotated, Any, List, Dict, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,8 @@ from db.models import Skill, User
 from dto.request.skills import SkillRequestBase
 from dto.response.skills import SkillResponseFull
 from service.service import BaseService
+from service.file_processor import FileProcessor
+from service.uploader import UploaderFactory, UploaderType
 from security import get_current_user, admin_required
 from utils.common import common_parameters
 
@@ -95,3 +97,31 @@ async def delete_skill(
     service: BaseService[Skill, int, Any, Any] = BaseService(Skill, session)
     deleted = await service.delete(skill_id)
     return deleted
+
+
+@skills_router.post("/upload", response_model=List[SkillResponseFull])
+async def upload_skills(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    current_user: Optional[User] = Depends(get_current_user),
+    file: UploadFile = File(...)
+) -> List[SkillResponseFull]:
+    """Upload skills from CSV or Excel file"""
+    # Upload file to MinIO
+    uploader = UploaderFactory().set_uploader_type(UploaderType.MINIO).build()
+    await uploader.put_file("skills", file.filename, file)
+    
+    # Process file
+    file.file.seek(0)  # Reset file pointer
+    data = await FileProcessor.process_csv_excel(file)
+    validated_data = FileProcessor.validate_skills_data(data)
+    
+    # Create skills
+    service: BaseService[Skill, int, SkillRequestBase, Any] = BaseService(Skill, session)
+    created_skills = []
+    
+    for skill_data in validated_data:
+        skill_request = SkillRequestBase(**skill_data)
+        created_skill = await service.create(skill_request)
+        created_skills.append(SkillResponseFull(**created_skill.model_dump()))
+    
+    return created_skills

@@ -156,7 +156,9 @@ def matrix_validation_scorer():
 @task
 def matrix_validation_eval():
     return Task(
-        dataset=csv_dataset("evaluation_dataset.csv"),
+        # evaluation_dataset_multiturn is not proper dataset as it's not following the structure i invisioned.
+        # It's possible to add the multiturn conversation
+        dataset=csv_dataset("evaluation_dataset_misbehaving.csv"),
         plan=[matrix_validation_solver()],
         scorer=matrix_validation_scorer(),
         fail_on_error=False,
