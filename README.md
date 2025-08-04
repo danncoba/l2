@@ -188,3 +188,28 @@ For Application:
 - This is a never ending story what can be added. A lot of funcitonalities is not finished
 - We can add detail analytics
 - We can add pipelines for getting the data
+
+# Development and Clickhouse
+Create the following table within clickhouse langtrace db
+```sql
+create table cmd4bh14t0001yrs5ezwn0y8o_2
+(
+    name        Nullable(String),
+    trace_id    Nullable(String),
+    span_id     Nullable(String),
+    trace_state Nullable(String),
+    kind        Nullable(Int16),
+    parent_id   Nullable(String),
+    start_time  Nullable(String),
+    end_time    Nullable(String),
+    attributes  Nullable(String),
+    status_code Nullable(String),
+    events      Nullable(String),
+    links       Nullable(String),
+    duration    Nullable(Float64)
+)
+    engine = Memory;
+```
+This project is created within
+
+Traces are empty now to not send thousands of traces and gigabytes of data
