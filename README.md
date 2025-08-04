@@ -210,6 +210,12 @@ create table cmd4bh14t0001yrs5ezwn0y8o_2
 )
     engine = Memory;
 ```
-This project is created within
+This project is created within this table
 
 Traces are empty now to not send thousands of traces and gigabytes of data
+
+# Postgresql Data migrations
+Postgresql data migrations can be run by running alembic migrations
+```bash
+alembic upgrade head
+```
