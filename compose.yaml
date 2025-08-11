@@ -36,89 +36,86 @@ services:
       retries: 10
       start_period: 60s
 
-  # Jaeger initialization script
-  jaeger-init:
-    image: cassandra:4.1
-    container_name: jaeger-init
-    depends_on:
-      cassandra:
-        condition: service_healthy
-    command: >
-      sh -c "
-        echo 'Waiting for Cassandra to be ready...'
-        until cqlsh cassandra 9042 -u cassandra -p cassandra -e 'describe keyspaces'; do
-          echo 'Cassandra not ready yet, waiting...'
-          sleep 5
-        done
-        echo 'Creating Jaeger keyspace...'
-        cqlsh cassandra 9042 -u cassandra -p cassandra -e \"
-          CREATE KEYSPACE IF NOT EXISTS jaeger_v1_dc1
-          WITH replication = {
-            'class': 'SimpleStrategy',
-            'replication_factor': 1
-          };
-        \"
-        echo 'Jaeger keyspace created successfully'
-      "
-    restart: "no"
-
-  # Jaeger schema initialization
-  jaeger-schema-init:
-    image: jaegertracing/jaeger-cassandra-schema:1.54
-    container_name: jaeger-schema-init
-    depends_on:
-      jaeger-init:
-        condition: service_completed_successfully
-    environment:
-      - CASSANDRA_SERVERS=cassandra:9042
-      - CASSANDRA_KEYSPACE=jaeger_v1_dc1
-      - CASSANDRA_USERNAME=cassandra
-      - CASSANDRA_PASSWORD=cassandra
-      - CASSANDRA_DATACENTER=datacenter1
-      - CASSANDRA_RACK=rack1
-    restart: "no"
-
-  # Jaeger with Cassandra storage
-  jaeger:
-    image: jaegertracing/all-in-one:1.54
-    container_name: jaeger
-    ports:
-      - "16686:16686"  # Jaeger UI
-      - "14268:14268"  # HTTP collector
-      - "14250:14250"  # gRPC collector
-      - "6831:6831/udp"  # UDP collector
-      - "6832:6832/udp"  # UDP collector
-    environment:
-      - SPAN_STORAGE_TYPE=cassandra
-      - CASSANDRA_SERVERS=cassandra:9042
-      - CASSANDRA_KEYSPACE=jaeger_v1_dc1
-      - CASSANDRA_USERNAME=cassandra
-      - CASSANDRA_PASSWORD=cassandra
-      - CASSANDRA_DATACENTER=datacenter1
-      - CASSANDRA_RACK=rack1
-      - CASSANDRA_USE_EXTERNAL_REMOTE_WRITE=false
-      - CASSANDRA_ENDPOINT_SNITCH=SimpleSnitch
-      - COLLECTOR_OTLP_ENABLED=true
-    depends_on:
-      jaeger-schema-init:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
-    # OpenTelemetry Collector
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.88.0
-    container_name: otel-collector
-    command: [ "--config=/etc/otel-collector-config.yaml" ]
-    volumes:
-      - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml
-    ports:
-      - "4317:4317"   # OTLP gRPC receiver
-      - "4318:4318"   # OTLP HTTP receiver
-      - "8888:8888"   # Collector metrics
-      - "8887:8887"
-    depends_on:
-      - jaeger
-      - loki
+#  # Jaeger initialization script
+#  jaeger-init:
+#    image: cassandra:4.1
+#    container_name: jaeger-init
+#    depends_on:
+#      cassandra:
+#        condition: service_healthy
+#    command: >
+#      sh -c "
+#        echo 'Waiting for Cassandra to be ready...'
+#        until cqlsh cassandra 9042 -u cassandra -p cassandra -e 'describe keyspaces'; do
+#          echo 'Cassandra not ready yet, waiting...'
+#          sleep 5
+#        done
+#        echo 'Creating Jaeger keyspace...'
+#        cqlsh cassandra 9042 -u cassandra -p cassandra -e \"
+#          CREATE KEYSPACE IF NOT EXISTS jaeger_v1_dc1
+#          WITH replication = {
+#            'class': 'SimpleStrategy',
+#            'replication_factor': 1
+#          };
+#        \"
+#        echo 'Jaeger keyspace created successfully'
+#      "
+#    restart: "no"
+#
+#  # Jaeger schema initialization
+#  jaeger-schema-init:
+#    image: jaegertracing/jaeger-cassandra-schema:1.54
+#    container_name: jaeger-schema-init
+#    depends_on:
+#      jaeger-init:
+#        condition: service_completed_successfully
+#    environment:
+#      - CASSANDRA_SERVERS=cassandra:9042
+#      - CASSANDRA_KEYSPACE=jaeger_v1_dc1
+#      - CASSANDRA_USERNAME=cassandra
+#      - CASSANDRA_PASSWORD=cassandra
+#      - CASSANDRA_DATACENTER=datacenter1
+#      - CASSANDRA_RACK=rack1
+#    restart: "no"
+#
+#  # Jaeger with Cassandra storage
+#  jaeger:
+#    image: jaegertracing/all-in-one:1.54
+#    container_name: jaeger
+#    ports:
+#      - "16686:16686"  # Jaeger UI
+#      - "14268:14268"  # HTTP collector
+#      - "14250:14250"  # gRPC collector
+#      - "6831:6831/udp"  # UDP collector
+#      - "6832:6832/udp"  # UDP collector
+#    environment:
+#      - SPAN_STORAGE_TYPE=cassandra
+#      - CASSANDRA_SERVERS=cassandra:9042
+#      - CASSANDRA_KEYSPACE=jaeger_v1_dc1
+#      - CASSANDRA_USERNAME=cassandra
+#      - CASSANDRA_PASSWORD=cassandra
+#      - CASSANDRA_DATACENTER=datacenter1
+#      - CASSANDRA_RACK=rack1
+#      - CASSANDRA_USE_EXTERNAL_REMOTE_WRITE=false
+#      - CASSANDRA_ENDPOINT_SNITCH=SimpleSnitch
+#      - COLLECTOR_OTLP_ENABLED=true
+#    depends_on:
+#      jaeger-schema-init:
+#        condition: service_completed_successfully
+#    restart: unless-stopped
+#
+#    # OpenTelemetry Collector
+#  otel-collector:
+#    image: otel/opentelemetry-collector-contrib:0.88.0
+#    container_name: otel-collector
+#    command: [ "--config=/etc/otel-collector-config.yaml" ]
+#    volumes:
+#      - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+#    ports:
+#      - "4317:4317"   # OTLP gRPC receiver
+#      - "4318:4318"   # OTLP HTTP receiver
+#      - "8888:8888"   # Collector metrics
+#      - "8887:8887"
 
   minio:
     image: minio/minio:latest
